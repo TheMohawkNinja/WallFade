@@ -249,17 +249,21 @@ int main(int argc, char **argv)
         	bgH=background.rows();
 		cout<<"Image size (resized): "<<bgW<<", "<<bgH<<endl;
 
-		//Fade new image in
+		//Solve for transition steps
 		for (int i=0; i<steps; i++)
 		{
-			cout<<"Transition step "<<i<<endl;
+			cout<<"Compositing transition step "<<i<<endl;
 			system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+path+".cache/resizeOld.jpg"+" "+path+".cache/transition"+to_string(i)+".jpg").c_str());
+			//cout<<"Sleeping for "<<to_string(delay/steps)<<" microseconds"<<endl;
 			usleep(delay/steps);
 		}
 
+		//Fade new image in
+		cout<<"Fading new image in"<<endl;
 		for (int i=0; i<steps; i++)
 		{
 			system(("feh --bg-scale "+path+".cache/transition"+to_string(i)+".jpg").c_str());
+			//cout<<"Sleeping for "<<to_string((second/steps)+subdelay)<<" microseconds"<<endl;
 			usleep((second/steps)+subdelay);
 		}
 
