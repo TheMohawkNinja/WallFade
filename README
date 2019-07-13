@@ -1,0 +1,34 @@
+WallFade is a program meant to imitate the fade transition for wallpapers that exists in Windows 10.
+
+DEPENDANCIES
+	Curently only urxvt is supported, although any terminal capable of interpreting OSC sequences can be integrated.
+	
+	OSC functionality can be tested by entering "echo -e '\033]10;#0000ff\007'". This should turn the foreground of your terminal to blue.
+
+	Additionally, ImageMagick is required, as it handles the actual image compositing.
+
+USAGE
+	When you first run WallFade, run it with sudo so that the initial config file in /etc/WallFade/config can be generated. After this, WallFade can be called by itself.
+
+	WallFade will make a .cache folder in the specified location of your wallpapers that will contain a listing of your pictures along with each transition image, so very hi-res images with a high "steps" value configured may lead to a large cache size.
+
+	You can add images to the designated folder during runtime, as the program rebuilds the image list each time it is done fading in the next image.
+
+	Only one monitor support right now, although this is going to change once I setup a second monitor to test with.
+
+CONFIG
+	WallFade currently comes with the following configurations:
+
+		path: Where your wallpapers are located.
+		steps: Number of transitions steps for fade sequence. More steps  means more cached images, but a smoother transition.
+		delay: Number of seconds between wallpaper change.
+		subdelay: Number of miliseconds between each transition step. Will make fade last longer, but fade will look choppy if this value is too high.
+		threshold: The threshold for each 8-bit color channel that the system will use to determine which pixels will be selected for determining terminal color.
+
+ISSUES
+	It's not the most lightweight thing in the world. I developed this on a Dell Latitude E6540, and while the htop output for the program itself always shows <10%, the overall core usage clearly increases by ~10% during it's usage.
+	It may not be an issue for machines with a descrete GPU, however.
+
+TO CONTRIBUTORS
+
+	Compile with "WallFade.cpp `Magick++-config --cxxflags --cppflags --ldflags --libs` -o WallFade"
