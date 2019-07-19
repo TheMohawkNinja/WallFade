@@ -20,15 +20,92 @@ string line;
 string user=getlogin();
 string path="/home/"+user+"/Pictures/";
 string::size_type index;
-int index_int, steps, delay, subdelay;
+int index_int, steps, delay, subdelay, Rctr, Gctr, Bctr, ctr;
 int milisecond=1000;
 int second=1000*milisecond;
 int threshold=100;
+double avgR, avgG, avgB;
+bool colorForce=false;
+ColorRGB AVG;
+ColorRGB ColorSample[30][30];
 
 bool fexists(const char *filename)
 {
-  ifstream ifile(filename);
-  return (bool)ifile;
+	ifstream ifile(filename);
+	return (bool)ifile;
+}
+
+bool to_bool(std::string str)
+{
+	std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+	std::istringstream is(str);
+	bool b;
+	is >> std::boolalpha >> b;
+	return b;
+}
+
+void calcAvg()
+{
+	avgR/=(ctr*255);
+        avgG/=(ctr*255);
+        avgB/=(ctr*255);
+        cout<<"Average (RGB): ("<<(int)(avgR*255)<<","<<(int)(avgG*255)<<","<<(int)(avgB*255)<<")"<<endl;
+        AVG=ColorRGB(avgR,avgG,avgB);
+}
+
+void averageColors(char color)
+{
+	avgR=0;
+	avgG=0;
+	avgB=0;
+
+	if(color=='r')
+	{
+		for(int y=0; y<30; y++)
+        	{
+                	for(int x=0; x<30; x++)
+                	{
+				if((ColorSample[x][y].red()*255)>threshold)
+				{
+					avgR+=ColorSample[x][y].red()*255;
+					avgG+=ColorSample[x][y].green()*255;
+					avgB+=ColorSample[x][y].blue()*255;
+				}
+			}
+		}
+	}
+	else if(color=='g')
+        {
+                for(int y=0; y<30; y++)
+                {
+                        for(int x=0; x<30; x++)
+                        {
+                                if((ColorSample[x][y].green()*255)>threshold)
+                                {
+                                        avgR+=ColorSample[x][y].red()*255;
+                                        avgG+=ColorSample[x][y].green()*255;
+                                        avgB+=ColorSample[x][y].blue()*255;
+                                }
+                        }
+                }
+        }
+	else if(color=='b')
+        {
+                for(int y=0; y<30; y++)
+                {
+                        for(int x=0; x<30; x++)
+                        {
+                                if((ColorSample[x][y].blue()*255)>threshold)
+                                {
+                                        avgR+=ColorSample[x][y].red()*255;
+                                        avgG+=ColorSample[x][y].green()*255;
+                                        avgB+=ColorSample[x][y].blue()*255;
+                                }
+                        }
+                }
+        }
+
+	calcAvg();
 }
 
 void readConfig()
@@ -100,6 +177,13 @@ void readConfig()
 
                                 cout<<"Setting threshold to "<<threshold<<endl;
                         }
+
+			if(line.find("colorForce") != std::string::npos)
+                        {
+                                colorForce=to_bool(line.substr(line.find("=",0)+1,(line.length()-(line.find("=",0)+1))));
+
+                                cout<<"Setting colorForce to "<<std::boolalpha<<colorForce<<endl;
+                        }
 		}
         }
         readstream.close();
@@ -120,14 +204,15 @@ void makeConfig()
 	writestream<<"subdelay="+to_string(subdelay/milisecond)+"\n\n";
 	writestream<<"#The threshold for each 8-bit color channel that the system will use to determine which pixels will be selected for determining terminal color. Default: "+to_string(threshold)+"\n";
         writestream<<"threshold="+to_string(threshold)+"\n";
+	writestream<<"#If true, will attempt to force a saturated foreground color. Meant to keep colorful images from producing grey text. Default: "+to_string(colorForce)+"\n";
+        writestream<<"colorForce="+to_string(colorForce)+"\n";
 	writestream.close();
 }
 
 int main(int argc, char **argv)
 {
 	InitializeMagick(*argv);
-	int bgW, bgH, r, g, b, ctr, rndHold, rndHoldOld, threshold;
-	double avgR, avgG, avgB;
+	int bgW, bgH, r, g, b, rndHold, rndHoldOld, threshold;
 	string avgRHex;
 	string avgGHex;
 	string avgBHex;
@@ -139,8 +224,6 @@ int main(int argc, char **argv)
 	Image mask(Geometry(60,30),Color(0,0,0));
 	Image background;
 	Image lastbackground;
-	ColorRGB ColorSample[30][30];
-	ColorRGB AVG;
 	stringstream stream;
 	Display* d=XOpenDisplay(NULL);
 	Screen* s=DefaultScreenOfDisplay(d);
@@ -283,31 +366,61 @@ int main(int argc, char **argv)
 			g=ColorSample[x][y].green()*255;
 			b=ColorSample[x][y].blue()*255;
 
-			if(r>threshold || g>threshold || b>threshold)
+			if(r>threshold)
 			{
-				ColorSpace.pixelColor(x,y,ColorSample[x][y]);
+				Rctr++;
 				avgR+=r;
 				avgG+=g;
 				avgB+=b;
 				ctr++;
        			}
+			else if(g>threshold)
+			{
+				Gctr++;
+				avgR+=r;
+                                avgG+=g;
+                                avgB+=b;
+                                ctr++;
+			}
+			else if(b>threshold)
+			{
+				Bctr++;
+				avgR+=r;
+                                avgG+=g;
+                                avgB+=b;
+                                ctr++;
+			}
 		}
 	}
 
-	//Get average of saturated colors
-	avgR/=(ctr*255);
-	avgG/=(ctr*255);
-	avgB/=(ctr*255);
-	cout<<"Average (RGB): ("<<(int)(avgR*255)<<","<<(int)(avgG*255)<<","<<(int)(avgB*255)<<")"<<endl;
-	AVG=ColorRGB(avgR,avgG,avgB);
-
-	for(int y=0; y<30; y++)
-        {
-                for(int x=0; x<30; x++)
+	if(!colorForce)
+	{
+		//Get average of saturated colors
+		calcAvg();
+	}
+	else
+	{
+		if(Rctr>Gctr&&Rctr>Bctr)//Red
+		{
+			averageColors('r');
+		}
+		else if(Gctr>Rctr&&Gctr>Bctr)//Green
                 {
-			ColorSpace.pixelColor(x+30,y,AVG);
+                        averageColors('g');
+                }
+		else if(Gctr>Rctr&&Gctr>Bctr)//Blue
+                {
+                        averageColors('b');
+                }
+		else
+		{
+			calcAvg();
 		}
 	}
+
+	Rctr=0;
+	Gctr=0;
+	Bctr=0;
 
 	//Convert averages to hex
 	stream<<std::hex<<(int)(avgR*255);

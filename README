@@ -24,6 +24,7 @@ CONFIG
 		delay: Number of seconds between wallpaper change.
 		subdelay: Number of miliseconds between each transition step. Will make fade last longer, but fade will look choppy if this value is too high.
 		threshold: The threshold for each 8-bit color channel that the system will use to determine which pixels will be selected for determining terminal color.
+		colorForce: If true, will attempt to force a saturated foreground color. Meant to keep colorful images from producing grey text.
 
 ISSUES
 	It's not the most lightweight thing in the world. I developed this on a Dell Latitude E6540, and while the htop output for the program itself always shows <10%, the overall core usage clearly increases by ~10% during it's usage.
