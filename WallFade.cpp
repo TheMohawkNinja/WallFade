@@ -20,10 +20,13 @@ string line;
 string user=getlogin();
 string path="/home/"+user+"/Pictures/";
 string::size_type index;
-int index_int, steps, delay, subdelay, Rctr, Gctr, Bctr, ctr;
+int index_int, Rctr, Gctr, Bctr, ctr;
 int milisecond=1000;
 int second=1000*milisecond;
 int threshold=100;
+int steps=25;
+int delay=60*second;
+int subdelay=0;
 double avgR, avgG, avgB;
 bool colorForce=false;
 ColorRGB AVG;
@@ -44,11 +47,13 @@ bool to_bool(std::string str)
 	return b;
 }
 
-void calcAvg()
+void calcAvg(int c)
 {
-	avgR/=(ctr*255);
-        avgG/=(ctr*255);
-        avgB/=(ctr*255);
+	cout<<"Total: "<<(int)avgR<<", "<<(int)avgG<<", "<<(int)avgB<<endl;
+	cout<<"Divider: "<<c<<endl;
+	avgR/=(int)(c*255);
+        avgG/=(int)(c*255);
+        avgB/=(int)(c*255);
         cout<<"Average (RGB): ("<<(int)(avgR*255)<<","<<(int)(avgG*255)<<","<<(int)(avgB*255)<<")"<<endl;
         AVG=ColorRGB(avgR,avgG,avgB);
 }
@@ -65,7 +70,7 @@ void averageColors(char color)
         	{
                 	for(int x=0; x<30; x++)
                 	{
-				if((ColorSample[x][y].red()*255)>threshold)
+				if((int)(ColorSample[x][y].red()*255)>threshold)
 				{
 					avgR+=ColorSample[x][y].red()*255;
 					avgG+=ColorSample[x][y].green()*255;
@@ -73,6 +78,8 @@ void averageColors(char color)
 				}
 			}
 		}
+
+                calcAvg(Rctr);
 	}
 	else if(color=='g')
         {
@@ -80,7 +87,7 @@ void averageColors(char color)
                 {
                         for(int x=0; x<30; x++)
                         {
-                                if((ColorSample[x][y].green()*255)>threshold)
+                                if((int)(ColorSample[x][y].green()*255)>threshold)
                                 {
                                         avgR+=ColorSample[x][y].red()*255;
                                         avgG+=ColorSample[x][y].green()*255;
@@ -88,6 +95,8 @@ void averageColors(char color)
                                 }
                         }
                 }
+
+		calcAvg(Gctr);
         }
 	else if(color=='b')
         {
@@ -95,7 +104,7 @@ void averageColors(char color)
                 {
                         for(int x=0; x<30; x++)
                         {
-                                if((ColorSample[x][y].blue()*255)>threshold)
+                                if((int)(ColorSample[x][y].blue()*255)>threshold)
                                 {
                                         avgR+=ColorSample[x][y].red()*255;
                                         avgG+=ColorSample[x][y].green()*255;
@@ -103,9 +112,9 @@ void averageColors(char color)
                                 }
                         }
                 }
-        }
 
-	calcAvg();
+		calcAvg(Bctr);
+        }
 }
 
 void readConfig()
@@ -212,7 +221,8 @@ void makeConfig()
 int main(int argc, char **argv)
 {
 	InitializeMagick(*argv);
-	int bgW, bgH, r, g, b, rndHold, rndHoldOld, threshold;
+	int bgW, bgH, rndHold, rndHoldOld;
+	double r, g, b;
 	string avgRHex;
 	string avgGHex;
 	string avgBHex;
@@ -227,10 +237,6 @@ int main(int argc, char **argv)
 	stringstream stream;
 	Display* d=XOpenDisplay(NULL);
 	Screen* s=DefaultScreenOfDisplay(d);
-
-	threshold=100;
-	steps=25;
-	delay=60*second;
 
 	//Check for config file and make one if it does not exist
 	if(!fexists((configpath).c_str()))
@@ -368,6 +374,7 @@ int main(int argc, char **argv)
 
 			if(r>threshold)
 			{
+				cout<<r<<" greater than "<<threshold<<endl;
 				Rctr++;
 				avgR+=r;
 				avgG+=g;
@@ -376,6 +383,7 @@ int main(int argc, char **argv)
        			}
 			else if(g>threshold)
 			{
+				cout<<g<<" greater than "<<threshold<<endl;
 				Gctr++;
 				avgR+=r;
                                 avgG+=g;
@@ -384,6 +392,7 @@ int main(int argc, char **argv)
 			}
 			else if(b>threshold)
 			{
+				cout<<b<<" greater than "<<threshold<<endl;
 				Bctr++;
 				avgR+=r;
                                 avgG+=g;
@@ -396,25 +405,29 @@ int main(int argc, char **argv)
 	if(!colorForce)
 	{
 		//Get average of saturated colors
-		calcAvg();
+		calcAvg(ctr);
 	}
 	else
 	{
 		if(Rctr>Gctr&&Rctr>Bctr)//Red
 		{
+			cout<<"Major color: Red ("<<Rctr<<")"<<endl;
 			averageColors('r');
 		}
 		else if(Gctr>Rctr&&Gctr>Bctr)//Green
                 {
+			cout<<"Major color: Green ("<<Gctr<<")"<<endl;
                         averageColors('g');
                 }
 		else if(Gctr>Rctr&&Gctr>Bctr)//Blue
                 {
+			cout<<"Major color: Blue ("<<Bctr<<")"<<endl;
                         averageColors('b');
                 }
 		else
 		{
-			calcAvg();
+			cout<<"Major color: Other"<<endl;
+			calcAvg(ctr);
 		}
 	}
 
@@ -465,6 +478,8 @@ int main(int argc, char **argv)
 	}
 
 	cout<<"Done!\n"<<endl;
-}//while end
+
+	}//while end
+
 	return 0;
 }

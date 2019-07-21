@@ -32,4 +32,4 @@ ISSUES
 
 TO CONTRIBUTORS
 
-	Compile with "WallFade.cpp `Magick++-config --cxxflags --cppflags --ldflags --libs` -o WallFade"
+	Compile with "g++ WallFade.cpp `Magick++-config --cxxflags --cppflags --ldflags --libs` -o WallFade"
