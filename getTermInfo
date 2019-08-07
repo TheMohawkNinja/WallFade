@@ -1,0 +1,10 @@
+#!/bin/bash
+
+outfile=/etc/WallFade/TermInfo
+
+tty | grep -Eo '[0-9]{0,9}' >> $outfile
+echo $WINDOWID >> $outfile
+xwininfo -id $WINDOWID | grep -E 'Absolute upper-left X:  [0-9]{0,6}' | grep -Eo '[0-9]{0,6}' >> $outfile
+xwininfo -id $WINDOWID | grep -E 'Absolute upper-left Y:  [0-9]{0,6}' | grep -Eo '[0-9]{0,6}' >> $outfile
+
+$SHELL

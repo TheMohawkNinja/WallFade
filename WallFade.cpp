@@ -15,35 +15,58 @@ using namespace Magick;
 
 ifstream readstream;
 ofstream writestream;
-string configpath="/etc/WallFade/";
-string line;
-string avgRHex;
-string avgGHex;
-string avgBHex;
-string newpic;
-string oldpic;
-string bgpath;
-string pics[100];
-string user=getlogin();
-string path="/home/"+user+"/Pictures/";
-string::size_type index;
-stringstream stream;
-int index_int, Rctr, Gctr, Bctr, ctr, bgW, bgH, rndHold, rndHoldOld;
+int index_int, Rctr, Gctr, Bctr, ctr, bgW, bgH, rndHold, rndHoldOld, screens;
 int milisecond=1000;
 int second=1000*milisecond;
 int threshold=100;
 int steps=25;
 int delay=60*second;
 int subdelay=0;
+const int maxMonitors=8;
+const int maxTerms=100;
+int monitorXRes[maxMonitors],  monitorYRes[maxMonitors],  monitorXOff[maxMonitors],  monitorYOff[maxMonitors];
+int term[maxTerms], termID[maxTerms], termX[maxTerms], termY[maxTerms];
 double avgR, avgG, avgB, avgRTrans, avgGTrans, avgBTrans, r, g, b, fadePoint;
 bool colorForce=false;
 bool fadeForeground=false;
-ColorRGB AVG, oldAVG;
+string configpath="/etc/WallFade/";
+string line;
+string avgRHex[maxMonitors];
+string avgGHex[maxMonitors];
+string avgBHex[maxMonitors];
+string newpic;
+string oldpic;
+string resolution;
+string pics[100];
+string user=getlogin();
+string path="/home/"+user+"/Pictures/";
+string::size_type index;
+stringstream stream;
+ColorRGB AVG, oldAVG[maxMonitors];
 ColorRGB ColorSample[30][30], oldColorSample[30][30];
 Image background;
 Image lastbackground;
 Display* d=XOpenDisplay(NULL);
 Screen* s=DefaultScreenOfDisplay(d);
+
+string getCmdOut(string cmd)
+{
+	string data;
+	FILE* stream;
+	const int max_buffer = 256;
+	char buffer[max_buffer];
+	cmd.append(" 2>&1");
+	stream=popen(cmd.c_str(), "r");
+
+	if(stream)
+	{
+		while (!feof(stream))
+		if (fgets(buffer, max_buffer, stream) != NULL) data.append(buffer);
+		pclose(stream);
+	}
+
+	return data;
+}
 
 bool fexists(const char *filename)
 {
@@ -130,7 +153,22 @@ void averageColors(char color)
         }
 }
 
-void foregroundColorSet()
+void updateTermColors()
+{
+	//Refresh TermColors
+        system(("rm "+configpath+"TermColors").c_str());
+
+        for(int s=0; s<screens; s++)
+        {
+        	system(("echo "+to_string(monitorXRes[s])+" >> "+configpath+"TermColors").c_str());
+                system(("echo "+to_string(monitorYRes[s])+" >> "+configpath+"TermColors").c_str());
+                system(("echo "+to_string(monitorXOff[s])+" >> "+configpath+"TermColors").c_str());
+                system(("echo "+to_string(monitorYOff[s])+" >> "+configpath+"TermColors").c_str());
+                system(("echo "+avgRHex[s]+avgGHex[s]+avgBHex[s]+" >> "+configpath+"TermColors").c_str());
+        }
+}
+
+void foregroundColorSet(int s)
 {
 	//Make 30*30 sample space from image
 	for(int y=0; y<30; y++)
@@ -204,56 +242,56 @@ void foregroundColorSet()
 
 	//Convert averages to hex
 	stream<<std::hex<<(int)(avgR*255);
-	avgRHex=stream.str();
+	avgRHex[s]=stream.str();
 	stream.str("");
 	stream<<std::hex<<(int)(avgG*255);
-        avgGHex=stream.str();
+        avgGHex[s]=stream.str();
 	stream.str("");
 	stream<<std::hex<<(int)(avgB*255);
-        avgBHex=stream.str();
+        avgBHex[s]=stream.str();
 	stream.str("");
 	cout<<"Average (hex): "<<avgRHex<<avgGHex<<avgBHex<<endl;
 
 	//Save against all black text for troubleshooting
-        if(avgGHex=="0"&&avgGHex=="0"&&avgBHex=="0")
+        if(avgGHex[s]=="0"&&avgGHex[s]=="0"&&avgBHex[s]=="0")
         {
         	cout<<"Black Save!"<<endl;
-                avgRHex="ff";
-                avgGHex="ff";
-                avgBHex="ff";
+                avgRHex[s]="ff";
+                avgGHex[s]="ff";
+                avgBHex[s]="ff";
         }
 }
-void foregroundColorApply()
+void foregroundColorApply(int m)
 {
-	//Write new .Xresources file
-	readstream.open("/home/"+user+"/.Xresources");
-	writestream.open("/home/"+user+"/.Xresources.tmp");
-	for(int i=0; getline(readstream,line); i++)
-        {
-		if(line.find("foreground") != std::string::npos)
-		{
-			cout<<"Changing .Xresources foreground color"<<endl;
-			writestream<<"*.foreground: #"+avgRHex+avgGHex+avgBHex+"\n";
-		}
-		else
-		{
-			writestream<<line+"\n";
-		}
-        }
-	readstream.close();
-	writestream.close();
-
-	//Replace old .Xresources file with new one and load it
-	system(("cp /home/"+user+"/.Xresources.tmp /home/$USER/.Xresources").c_str());
-	system(("xrdb /home/"+user+"/.Xresources").c_str());
-
 	//Set currently open terminals to the new color
-	cout<<"Calling OSC escape sequence to change terminal color"<<endl;;
-	for(int i=0; fexists(("/dev/pts/"+to_string(i)).c_str()); i++)
+	cout<<"Calling OSC escape sequences to change terminal colors on monitor "<<m<<endl;
+	for(int i=1; i<maxTerms; i++)
 	{
-		cout<<"\t on "<<i<<endl;
-		system(("printf \"\033]10;#"+avgRHex+avgGHex+avgBHex+"\007\" > /dev/pts/"+to_string(i)).c_str());
-	}
+		if(termID[i]!=0)
+		{
+			cout<<"Terminal "<<term[i]<<" check"<<endl;
+			if(termX[i]>monitorXOff[m]&&termX[i]<(monitorXOff[m]+monitorXRes[m]))
+			{
+				cout<<"PASS: "<<termX[i]<<">"<<monitorXOff[m]<<"&&"<<termX[i]<<"<"<<monitorXOff[m]+monitorXRes[m]<<endl;
+				if(termY[i]>monitorYOff[m]&&termY[i]<(monitorYOff[m]+monitorYRes[m]))
+	                       	{
+					cout<<"PASS: "<<termY[i]<<">"<<monitorYOff[m]<<"&&"<<termY[i]<<"<"<<monitorYOff[m]+monitorYRes[m]<<endl;
+
+					cout<<"\t on "<<i<<endl;
+      		 			system(("printf \"\033]10;#"+avgRHex[m]+avgGHex[m]+avgBHex[m]+"\007\" > /dev/pts/"+to_string(term[i])).c_str());
+       	       			}
+				else
+				{
+					cout<<"FAIL: "<<termY[i]<<"<="<<monitorYOff[m]<<"||"<<termY[i]<<">="<<monitorYOff[m]+monitorYRes[m]<<endl;
+				}
+			}
+			else
+               	 	{
+               	        	 cout<<"FAIL: "<<termX[i]<<"<="<<monitorXOff[m]<<"||"<<termX[i]<<">="<<monitorXOff[m]+monitorXRes[m]<<endl;
+               	 	}
+		}
+	}				
+	updateTermColors();
 }
 
 void readConfig()
@@ -369,6 +407,40 @@ int main(int argc, char **argv)
 {
 	InitializeMagick(*argv);
 
+	//Get number of screens
+	std::istringstream ss (getCmdOut("xrandr | grep -v disconnected | grep -o connected | wc -l"));
+        ss >> screens;
+
+	//Get monitor info
+	cout<<"Monitor X resolutions"<<endl;
+	for(int i=0; i<screens; i++)
+	{
+		std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x' | grep -Eo '[0-9]{2,4}' | sed -n '"+to_string(i+1)+" p'"));
+		ss >> monitorXRes[i];
+		cout<<monitorXRes[i]<<endl;
+	}
+	cout<<"Monitor Y resolutions"<<endl;
+        for(int i=0; i<screens; i++)
+        {
+                std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}' | grep -Eo 'x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}' | sed -n '"+to_string(i+1)+" p'"));
+                ss >> monitorYRes[i];
+                cout<<monitorYRes[i]<<endl;
+        }
+	cout<<"Monitor X offsets"<<endl;
+	for(int i=0; i<screens; i++)
+	{
+		std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}[+][0-9]{0,4}[+][0-9]{0,4}' | grep -Eo '[+][0-9]{0,4}[+]' | grep -Eo '[0-9]{0,4}' | sed -n '"+to_string(i+1)+" p'"));
+                ss >> monitorXOff[i];
+                cout<<monitorXOff[i]<<endl;
+	}
+	cout<<"Monitor Y offsets"<<endl;
+        for(int i=0; i<screens; i++)
+        {
+                std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}[+][0-9]{0,4}[+][0-9]{0,4}' | grep -Eo '[+][0-9]{0,4}( |$)' | grep -Eo '[0-9]{0,4}' | sed -n '"+to_string(i+1)+" p'"));
+                ss >> monitorYOff[i];
+                cout<<monitorYOff[i]<<endl;
+        }
+
 	//Check for config file and make one if it does not exist
 	if(!fexists((configpath).c_str()))
 	{
@@ -386,7 +458,7 @@ int main(int argc, char **argv)
 		}
 
 	}
-	if(!fexists("/etc/WallFade/config"))
+	if(!fexists((configpath+"config").c_str()))
         {
 		makeConfig();
 		readConfig();
@@ -405,8 +477,43 @@ int main(int argc, char **argv)
 	//Make list of pics
 	system(("cd "+path+" && ls | grep -E 'jpg|png' | grep -Ev 'transition|resize' > .cache/.pics").c_str());
 
+	//Run updater program
+	cout<<"Starting updateTermInfo"<<endl;
+	system(("nohup "+configpath+"updateTermInfo &").c_str());
+
 	while(true)
 	{
+
+	for(int S=0; S<screens; S++)
+	{				
+		//updateTermColors();
+
+		//Determine which terminal is on what monitor
+		cout<<"Getting terminal positions"<<endl;
+		readstream.open(configpath+"TermInfo");
+        	for(int i=1; getline(readstream,line); i++)
+		{
+			std::istringstream st (line);
+                        st >> term[i];
+
+			getline(readstream,line);
+			std::istringstream sid (line);
+                        sid >> termID[i];
+
+			getline(readstream,line);
+			std::istringstream sx (line);
+               		sx >> termX[i];
+
+			getline(readstream,line);
+			std::istringstream sy (line);
+                       	sy >> termY[i];
+
+			cout<<"/dev/pts/"<<term[i]<<" ("<<termID[i]<<"): "<<termX[i]<<","<<termY[i]<<endl;
+		}
+		readstream.close();
+
+		cout<<"Working on screen "<<S<<endl;
+
 		ctr=0;
 
 		//Get pic names
@@ -420,10 +527,12 @@ int main(int argc, char **argv)
 		}
 		readstream.close();
 
-		cout<<"Desktop resolution: "<< s->width <<"x"<< s->height <<endl;
-
+		//Get monitor resolution
 		if(oldpic=="")
 		{
+			resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
+                	cout<<"Desktop resolution: "<<resolution<<endl;
+
 			//Get random image to start with
        		 	srand(time(NULL));
         		rndHold=rand()%ctr;
@@ -433,20 +542,31 @@ int main(int argc, char **argv)
 			cout<<"Using :"<<pics[rndHold]<<endl;
 
 			//Scale to desktop resolution
-			cout<<"Image size (original): "<<background.columns()<<", "<<background.rows()<<endl;
-			background.resize(to_string(s->width)+"x"+to_string(s->height)+"!");
-			background.write(path+".cache/resizeOld.jpg");
-			lastbackground=background;
-			oldpic=path+".cache/resizeOld.jpg";
-			bgW=background.columns();
-	        	bgH=background.rows();
-			cout<<"Image size (resized): "<<bgW<<", "<<bgH<<endl;
+			for(int i=0; i<screens; i++)
+                        {
+				cout<<"Image size (original): "<<background.columns()<<"x"<<background.rows()<<endl;
+				background.resize(resolution.substr(0,resolution.find("x"))+"x"+resolution.substr(resolution.find("x")+1,resolution.length()-(resolution.find("x")))+"!");
+				background.write(path+".cache/resizeOld"+to_string(i)+".jpg");
+				lastbackground=background;
+				oldpic=path+".cache/resizeOld"+to_string(i)+".jpg";
+				bgW=background.columns();
+	        		bgH=background.rows();
+				cout<<"Image size (resized): "<<bgW<<"x"<<bgH<<endl;
 
-			//Display image
-			system(("feh --bg-scale "+oldpic).c_str());
+				//Display image
+				cout<<"Setting screen "<<i<<endl;
+				system(("nitrogen  --head="+to_string(i)+" --set-scaled "+path+".cache/resizeOld"+to_string(i)+".jpg").c_str());
+
+				foregroundColorSet(i);
+				foregroundColorApply(i);
+				oldAVG[i]=AVG;
+			}
 		}
 		else
 		{
+			resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
+                	cout<<"Desktop resolution: "<<resolution<<endl;
+
 			//Get random new image
 			srand(time(NULL));
 
@@ -458,94 +578,99 @@ int main(int argc, char **argv)
 			rndHoldOld=rndHold;
 			newpic=path+pics[rndHold];
 			background=Image(newpic);
-			cout<<"Using :"<<pics[rndHold]<<endl;
+			cout<<"Using: "<<pics[rndHold]<<endl;
 
 			//Scale to desktop resolution
-			cout<<"Image size (original): "<<background.columns()<<", "<<background.rows()<<endl;
-			background.resize(to_string(s->width)+"x"+to_string(s->height)+"!");
+			cout<<"Image size (original): "<<background.columns()<<"x"<<background.rows()<<endl;
+			background.resize(resolution.substr(0,resolution.find("x"))+"x"+resolution.substr(resolution.find("x")+1,resolution.length()-(resolution.find("x")))+"!");
 			background.write(path+".cache/resizeNew.jpg");
 			newpic=path+".cache/resizeNew.jpg";
 			bgW=background.columns();
 	        	bgH=background.rows();
-			cout<<"Image size (resized): "<<bgW<<", "<<bgH<<endl;
+			cout<<"Image size (resized): "<<bgW<<"x"<<bgH<<endl;
 
 			//Solve for transition steps
-			for (int i=0; i<steps; i++)
+			for (int i=0; i<=steps; i++)
 			{
 				cout<<"Compositing transition step "<<i<<endl;
-				system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+path+".cache/resizeOld.jpg"+" "+path+".cache/transition"+to_string(i)+".jpg").c_str());
+				system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+path+".cache/resizeOld"+to_string(S)+".jpg"+" "+path+".cache/transition"+to_string(i)+".jpg").c_str());
 				usleep(delay/steps);
 			}
 
 			if(fadeForeground)
 			{
-				foregroundColorSet();
+				foregroundColorSet(S);
 			}
 
 			//Fade new image in
-			cout<<"Fading new image in"<<endl;
-			for (int i=0; i<steps; i++)
+			cout<<"Fading new image in on "<<S<<endl;
+			for (int i=0; i<=steps; i++)
 			{
-				system(("feh --bg-scale "+path+".cache/transition"+to_string(i)+".jpg").c_str());
+				system(("nitrogen  --head="+to_string(S)+" --set-scaled "+path+".cache/transition"+to_string(i)+".jpg").c_str());
 
 				if(fadeForeground)
 				{
 					//Solve for inbetween foreground colors
 					fadePoint=(double)i/steps;
 					cout<<"Fade point: "<<fadePoint<<endl;
-					//cout<<"Equation (red): "<<"((("<<AVG.red()*255<<")*"<<fadePoint<<")+(("<<oldAVG.red()*255<<")*(1-"<<fadePoint<<")))"<<endl;
-					avgRTrans=(int)(((AVG.red()*255)*fadePoint)+((oldAVG.red()*255)*(1-fadePoint)));
-                			avgGTrans=(int)(((AVG.green()*255)*fadePoint)+((oldAVG.green()*255)*(1-fadePoint)));
-                			avgBTrans=(int)(((AVG.blue()*255)*fadePoint)+((oldAVG.blue()*255)*(1-fadePoint)));
+					cout<<"Equation (red): "<<"((("<<AVG.red()*255<<")*"<<fadePoint<<")+(("<<oldAVG[S].red()*255<<")*(1-"<<fadePoint<<")))"<<endl;
+					avgRTrans=(int)(((AVG.red()*255)*fadePoint)+((oldAVG[S].red()*255)*(1-fadePoint)));
+                			avgGTrans=(int)(((AVG.green()*255)*fadePoint)+((oldAVG[S].green()*255)*(1-fadePoint)));
+                			avgBTrans=(int)(((AVG.blue()*255)*fadePoint)+((oldAVG[S].blue()*255)*(1-fadePoint)));
 
 					cout<<"Average (RGB): ("<<avgRTrans<<","<<avgGTrans<<","<<avgBTrans<<")"<<endl;
 
 					//Convert averages to hex
 				        stream<<std::hex<<(int)(avgRTrans);
-				        avgRHex=stream.str();
+				        avgRHex[S]=stream.str();
 				        stream.str("");
 				        stream<<std::hex<<(int)(avgGTrans);
-				        avgGHex=stream.str();
+				        avgGHex[S]=stream.str();
 			       		stream.str("");
 				        stream<<std::hex<<(int)(avgBTrans);
-			        	avgBHex=stream.str();
+			        	avgBHex[S]=stream.str();
 			        	stream.str("");
-			        	cout<<"Average (hex): "<<avgRHex<<avgGHex<<avgBHex<<endl;
+			        	cout<<"Average (hex): "<<avgRHex[S]<<avgGHex[S]<<avgBHex[S]<<endl;
 
 					//Save against all black text for troubleshooting
-					if(avgGHex=="0"&&avgGHex=="0"&&avgBHex=="0")
+					if(avgGHex[S]=="0"&&avgGHex[S]=="0"&&avgBHex[S]=="0")
         				{
 						cout<<"Black Save!"<<endl;
-                				avgRHex="ff";
-                				avgGHex="ff";
-                				avgBHex="ff";
+                				avgRHex[S]="ff";
+                				avgGHex[S]="ff";
+                				avgBHex[S]="ff";
         				}
 
 
-					foregroundColorApply();
+					foregroundColorApply(S);
 				}
 
-				usleep((second/steps)+subdelay);
+				usleep(subdelay);
 			}
 
 			//Set "new" old picture
 			oldpic=newpic;
 			lastbackground=background;
-			system(("cp "+path+".cache/resizeNew.jpg"+" "+path+".cache/resizeOld.jpg").c_str());
+			system(("cp "+path+".cache/resizeNew.jpg"+" "+path+".cache/resizeOld"+to_string(S)+".jpg").c_str());
 		}
 
-		if(!fadeForeground||(oldAVG.red()==0&&oldAVG.green()==0&&oldAVG.blue()==0))
+		if(!fadeForeground||(oldAVG[S].red()==0&&oldAVG[S].green()==0&&oldAVG[S].blue()==0))
 		{
-			foregroundColorSet();
-			foregroundColorApply();
+			foregroundColorSet(S);
+			foregroundColorApply(S);
 		}
 
 		//Set "new" old values
-		oldAVG=AVG;
+		oldAVG[S]=AVG;
 
 		cout<<"Done!\n"<<endl;
 
 	}
 
+	//clear cache
+	system(("rm "+path+".cache/transition*").c_str());
+	}
+
+	XCloseDisplay(d);
 	return 0;
 }

@@ -1,20 +1,27 @@
 WallFade is a program meant to imitate the fade transition for wallpapers that exists in Windows 10.
 
 DEPENDANCIES
-	Curently only urxvt is supported, although any terminal capable of interpreting OSC sequences can be integrated.
+	Any terminal capable of interpreting OSC sequences can be integrated.
 	
 	OSC functionality can be tested by entering "echo -e '\033]10;#0000ff\007'". This should turn the foreground of your terminal to blue.
 
-	Additionally, ImageMagick is required, as it handles the actual image compositing.
+	Additionally, ImageMagick and nitrogen are required.
+
+INSTALLATION
+	Make the directory "/etc/WallFade" and copy all of the contents of the git clone into it.
+	The hotkey used to bring up your terminal of choice must be called with the terminal running "/etc/WallFade/getTermInfo" (e.g. for a user using urxvt in i3, this would look like: "bindsym Mod1+Return exec urxvt -e /etc/WallFade/getTermInfo")
 
 USAGE
-	When you first run WallFade, run it with sudo so that the initial config file in /etc/WallFade/config can be generated. After this, WallFade can be called by itself.
+	WallFade must always be run under sudo. When you first run WallFade, an initial config file in /etc/WallFade/config will be generated if one does not already exist.
 
 	WallFade will make a .cache folder in the specified location of your wallpapers that will contain a listing of your pictures along with each transition image, so very hi-res images with a high "steps" value configured may lead to a large cache size.
 
 	You can add images to the designated folder during runtime, as the program rebuilds the image list each time it is done fading in the next image.
 
-	Only one monitor support right now, although this is going to change once I setup a second monitor to test with.
+	Config changes will require WallFade to restart to apply.
+
+	Maximum supported monitors: 8
+	Maximum supported terminals: 100
 
 CONFIG
 	WallFade currently comes with the following configurations:
@@ -30,6 +37,10 @@ CONFIG
 ISSUES
 	It's not the most lightweight thing in the world. I developed this on a Dell Latitude E6540, and while the htop output for the program itself always shows <10%, the overall core usage clearly increases by ~10% during it's usage.
 	It may not be an issue for machines with a descrete GPU, however.
+
+	Moving a terminal to a different monitor while the previous monitor is under a transition can cause flickering foreground color until its' current monitor transitions.
+
+	Killing and restarting WallFade may cause issues with current terminal's foreground colors
 
 TO CONTRIBUTORS
 
