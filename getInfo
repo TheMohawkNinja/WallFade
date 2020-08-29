@@ -1,0 +1,19 @@
+#!/bin/bash
+
+res="$(xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}')"
+x="$(xrandr | grep -Eo '[+][0-9]{1,4}[+]' | grep -Eo '[0-9]{1,4}')"
+y="$(xrandr | grep -Eo '[+][0-9]{1,4} ' | grep -Eo '[0-9]{1,4}')"
+
+echo "Monitor resolutions"
+echo "${res}"
+echo
+
+echo "Monitor X offsets"
+echo "${x}"
+echo
+
+echo "Monitor Y offsets"
+echo "${y}"
+echo
+
+
