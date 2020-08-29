@@ -1,0 +1,14 @@
+#!/bin/bash
+
+mkdir ~/Pictures
+mkdir ~/.cache
+touch ~/.cache/.pics
+
+mkdir .config
+mkdir .config/WallFade
+touch .config/WallFade/TermInfo
+touch .config/WallFade/TermColors
+
+cp ./WallFade /usr/bin/WallFade
+cp ./getTermInfo /usr/bin/getTermInfo
+cp ./updateTermInfo /usr/bin/updateTermInfo

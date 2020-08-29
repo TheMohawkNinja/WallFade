@@ -1,0 +1,47 @@
+WallFade is a program meant to imitate the fade transition for wallpapers that exists in Windows 10.
+
+DEPENDANCIES
+	Any terminal capable of interpreting OSC sequences can be integrated.
+	
+	OSC functionality can be tested by entering "echo -e '\033]10;#0000ff\007'". This should turn the foreground of your terminal to blue.
+
+	Additionally, ImageMagick and nitrogen are required.
+
+INSTALLATION
+	Make the directory "/etc/WallFade" and copy all of the contents of the git clone into it.
+	The hotkey used to bring up your terminal of choice must be called with the terminal running "/etc/WallFade/getTermInfo" (e.g. for a user using urxvt in i3, this would look like: "bindsym Mod1+Return exec urxvt -e /etc/WallFade/getTermInfo")
+
+USAGE
+	WallFade must always be run under sudo. When you first run WallFade, an initial config file in /etc/WallFade/config will be generated if one does not already exist.
+
+	WallFade will make a .cache folder in the specified location of your wallpapers that will contain a listing of your pictures along with each transition image, so very hi-res images with a high "steps" value configured may lead to a large cache size.
+
+	You can add images to the designated folder during runtime, as the program rebuilds the image list each time it is done fading in the next image.
+
+	Config changes will require WallFade to restart to apply.
+
+	Maximum supported monitors: 8
+	Maximum supported terminals: 100
+
+CONFIG
+	WallFade currently comes with the following configurations:
+
+		path: Where your wallpapers are located.
+		steps: Number of transitions steps for fade sequence. More steps  means more cached images, but a smoother transition.
+		delay: Number of seconds between wallpaper change.
+		subdelay: Number of miliseconds between each transition step. Will make fade last longer, but fade will look choppy if this value is too high.
+		threshold: The threshold for each 8-bit color channel that the system will use to determine which pixels will be selected for determining terminal color.
+		colorForce: If true, will attempt to force a saturated foreground color. Meant to keep colorful images from producing grey text.
+		fadeForeground: If true, will fade in the foreground color with the background fade in. If false, the foreground color will instantly change to the new color once the fade in has completed.
+
+ISSUES
+	It's not the most lightweight thing in the world. I developed this on a Dell Latitude E6540, and while the htop output for the program itself always shows <10%, the overall core usage clearly increases by ~10% during it's usage.
+	It may not be an issue for machines with a descrete GPU, however.
+
+	Moving a terminal to a different monitor while the previous monitor is under a transition can cause flickering foreground color until its' current monitor transitions.
+
+	Killing and restarting WallFade may cause issues with current terminal's foreground colors
+
+TO CONTRIBUTORS
+
+	Compile with "g++ WallFade.cpp `Magick++-config --cxxflags --cppflags --ldflags --libs` -lX11 -o WallFade"

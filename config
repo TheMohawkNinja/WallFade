@@ -1,0 +1,20 @@
+#Path where your wallpapers are located. Default: "+path+"\n";
+path=/home/terminus/Pictures/
+
+#Number of transitions steps for fade sequence. More steps means more cached images, but a smoother transition. Default: 25
+steps=20
+
+#Number of seconds between wallpaper change. Default: 60
+delay=60
+
+#Number of miliseconds between each transition step. Will make fade last longer, but fade will look choppy if this value is too high. Default: 0
+subdelay=0
+
+#The threshold for each 8-bit color channel that the system will use to determine which pixels will be selected for determining terminal color. Default: 100
+threshold=100
+
+#If true, will attempt to force a saturated foreground color. Meant to keep colorful images from producing grey text. Default: false
+colorForce=true
+
+#If true, will fade in the foreground color with the background fade in. If false, the foreground color will instantly change to the new color once the fade in has completed. Default: false
+fadeForeground=true
