@@ -8,12 +8,10 @@ DEPENDANCIES
 	Additionally, ImageMagick and nitrogen are required.
 
 INSTALLATION
-	Make the directory "/etc/WallFade" and copy all of the contents of the git clone into it.
-	The hotkey used to bring up your terminal of choice must be called with the terminal running "/etc/WallFade/getTermInfo" (e.g. for a user using urxvt in i3, this would look like: "bindsym Mod1+Return exec urxvt -e /etc/WallFade/getTermInfo")
+	Run the "install" script
+	The hotkey used to bring up your terminal of choice must be called with the terminal running "~/.config/WallFade/getTermInfo" (e.g. for a user using urxvt in i3, this would look like: "bindsym Mod1+Return exec urxvt -e ~/.config/WallFade/getTermInfo")
 
 USAGE
-	WallFade must always be run under sudo. When you first run WallFade, an initial config file in /etc/WallFade/config will be generated if one does not already exist.
-
 	WallFade will make a .cache folder in the specified location of your wallpapers that will contain a listing of your pictures along with each transition image, so very hi-res images with a high "steps" value configured may lead to a large cache size.
 
 	You can add images to the designated folder during runtime, as the program rebuilds the image list each time it is done fading in the next image.
@@ -40,7 +38,7 @@ ISSUES
 
 	Moving a terminal to a different monitor while the previous monitor is under a transition can cause flickering foreground color until its' current monitor transitions.
 
-	Killing and restarting WallFade may cause issues with current terminal's foreground colors
+	Sometimes a new terminal doesn't get the new colors. You may need to kill that terminal and make a new one.
 
 TO CONTRIBUTORS
 
