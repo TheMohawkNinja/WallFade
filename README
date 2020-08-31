@@ -18,8 +18,8 @@ USAGE
 
 	Config changes will require WallFade to restart to apply.
 
-	Maximum supported monitors: 8
-	Maximum supported terminals: 100
+	Maximum supported monitors: 255
+	Maximum supported terminals: 255
 
 CONFIG
 	WallFade currently comes with the following configurations:
@@ -37,8 +37,6 @@ ISSUES
 	It may not be an issue for machines with a descrete GPU, however.
 
 	Moving a terminal to a different monitor while the previous monitor is under a transition can cause flickering foreground color until its' current monitor transitions.
-
-	Sometimes a new terminal doesn't get the new colors. You may need to kill that terminal and make a new one.
 
 TO CONTRIBUTORS
 
