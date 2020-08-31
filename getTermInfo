@@ -1,14 +1,28 @@
 #!/bin/bash
 
 outfile=/home/$USER/.config/WallFade/TermInfo
+TTY=$(tty | grep -Eo '[0-9]{0,9}')
 WID=$(wmctrl -l | grep -Eo [0-9]{1}x[0-9a-f]{8} | tail -1)
+X=$(xwininfo -id $WID | grep -E 'Absolute upper-left X:  [0-9]{0,6}' | grep -Eo '[0-9]{0,6}')
+Y=$(xwininfo -id $WID | grep -E 'Absolute upper-left Y:  [0-9]{0,6}' | grep -Eo '[0-9]{0,6}')
 
 if [ $(echo $WID  | cut -c2-2) = "x" ]
 then
-	tty | grep -Eo '[0-9]{0,9}' >> $outfile
-	echo $WID >> $outfile
-	xwininfo -id $WID | grep -E 'Absolute upper-left X:  [0-9]{0,6}' | grep -Eo '[0-9]{0,6}' >> $outfile
-	xwininfo -id $WID | grep -E 'Absolute upper-left Y:  [0-9]{0,6}' | grep -Eo '[0-9]{0,6}' >> $outfile
+	if [[ 'lsof | grep $outfile' ]]
+	then
+		echo $TTY >> $outfile
+		echo $WID >> $outfile
+		echo $X >> $outfile
+		echo $Y >> $outfile
+	else
+		sleep 0.1
+		echo $TTY >> $outfile
+		echo $WID >> $outfile
+		echo $X >> $outfile
+		echo $Y >> $outfile
+	fi
 fi
+
+printf "\033]10;#$(cat ~/.config/WallFade/TermColors | tail -1)\007"
 
 $SHELL

@@ -268,7 +268,7 @@ void foregroundColorApply(int m)
 {
 	//Set currently open terminals to the new color
 	cout<<"Calling OSC escape sequences to change terminal colors on monitor "<<m<<endl;
-	for(int i=1; i<maxTerms; i++)
+	for(int i=0; i<maxTerms; i++)
 	{
 		if(term[i]!=0)
 		{
@@ -480,205 +480,204 @@ int main(int argc, char **argv)
 	//Make list of pics
 	system(("cd "+picpath+" && ls | grep -E 'jpg|png' | grep -Ev 'transition|resize' > .cache/.pics").c_str());
 
-	//Run updater program
+	//Delete old TermInfo file and start updater program
 	cout<<"Starting updateTermInfo"<<endl;
 	system("nohup updateTermInfo &");
 
 	while(true)
 	{
-
-	for(int S=0; S<screens; S++)
-	{
-		//updateTermColors();
-
-		//Determine which terminal is on what monitor
-		cout<<"Getting terminal positions"<<endl;
-		readstream.open(configpath+"TermInfo");
-        	for(int i=0; getline(readstream,line); i++)
+		for(int S=0; S<screens; S++)
 		{
-			std::istringstream st (line);
-                        st >> term[i];
+			//updateTermColors();
 
-			getline(readstream,line);
-			std::istringstream sid (line);
-                        sid >> termID[i];
-
-			getline(readstream,line);
-			std::istringstream sx (line);
-			sx >> termX[i];
-
-			getline(readstream,line);
-			std::istringstream sy (line);
-			sy >> termY[i];
-
-			cout<<"\t/dev/pts/"<<term[i]<<" ("<<termID[i]<<"): "<<termX[i]<<","<<termY[i]<<endl;
-		}
-		readstream.close();
-
-		cout<<"\nWorking on screen "<<S<<endl;
-		cout<<"Loading list of pics from: "+picpath+".cache/.pics"<<endl;
-
-		ctr=0;
-
-		//Get pic names															
-		readstream.open(picpath+".cache/.pics");
-		if(readstream.fail())
-		{
-			cerr<<"ERROR: Unable to open \'"+picpath+".cache/.pics\'. Error code: "<<errno<<endl;
-		}
-		else
-		{
+			//Determine which terminal is on what monitor
+			cout<<"Getting terminal positions"<<endl;
+			readstream.open(configpath+"TermInfo");
 			for(int i=0; getline(readstream,line); i++)
 			{
-				pics[i]=line;
-				cout<<"\tPic name "<<i<<": "<<pics[i]<<endl;
-				ctr++;
+				std::istringstream st (line);
+				st >> term[i];
+
+				getline(readstream,line);
+				std::istringstream sid (line);
+				sid >> termID[i];
+
+				getline(readstream,line);
+				std::istringstream sx (line);
+				sx >> termX[i];
+
+				getline(readstream,line);
+				std::istringstream sy (line);
+				sy >> termY[i];
+
+				cout<<"\t/dev/pts/"<<term[i]<<" ("<<termID[i]<<"): "<<termX[i]<<","<<termY[i]<<endl;
 			}
 			readstream.close();
-		}
 
-		cout<<endl;
+			cout<<"\nWorking on screen "<<S<<endl;
+			cout<<"Loading list of pics from: "+picpath+".cache/.pics"<<endl;
 
-		//Get monitor resolution
-		if(oldpic=="")
-		{
-			resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
-                	cout<<"Desktop resolution: "<<resolution<<endl;
+			ctr=0;
 
-			//Get random image to start with
-       		 	srand(time(NULL));
-        		rndHold=rand()%ctr;
-			rndHoldOld=rndHold;
-			oldpic=picpath+pics[rndHold];
-			background=Image(oldpic);
-			cout<<"Using: "<<pics[rndHold]<<endl;
+			//Get pic names															
+			readstream.open(picpath+".cache/.pics");
+			if(readstream.fail())
+			{
+				cerr<<"ERROR: Unable to open \'"+picpath+".cache/.pics\'. Error code: "<<errno<<endl;
+			}
+			else
+			{
+				for(int i=0; getline(readstream,line); i++)
+				{
+					pics[i]=line;
+					cout<<"\tPic name "<<i<<": "<<pics[i]<<endl;
+					ctr++;
+				}
+				readstream.close();
+			}
 
-			//Scale to desktop resolution
-			for(int i=0; i<screens; i++)
-                        {
+			cout<<endl;
+
+			//Get monitor resolution
+			if(oldpic=="")
+			{
+				resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
+				cout<<"Desktop resolution: "<<resolution<<endl;
+
+				//Get random image to start with
+				srand(time(NULL));
+				rndHold=rand()%ctr;
+				rndHoldOld=rndHold;
+				oldpic=picpath+pics[rndHold];
+				background=Image(oldpic);
+				cout<<"Using: "<<pics[rndHold]<<endl;
+
+				//Scale to desktop resolution
+				for(int i=0; i<screens; i++)
+				{
+					cout<<"Image size (original): "<<background.columns()<<"x"<<background.rows()<<endl;
+					background.resize(resolution.substr(0,resolution.find("x"))+"x"+resolution.substr(resolution.find("x")+1,resolution.length()-(resolution.find("x")))+"!");
+					background.write(picpath+".cache/resizeOld"+to_string(i)+".jpg");
+					lastbackground=background;
+					oldpic=picpath+".cache/resizeOld"+to_string(i)+".jpg";
+					bgW=background.columns();
+					bgH=background.rows();
+					cout<<"Image size (resized): "<<bgW<<"x"<<bgH<<endl;
+
+					//Display image
+					cout<<"Setting screen "<<i<<endl;
+					system(("nitrogen  --head="+to_string(i)+" --set-scaled "+picpath+".cache/resizeOld"+to_string(i)+".jpg").c_str());
+
+					foregroundColorSet(i);
+					foregroundColorApply(i);
+					oldAVG[i]=AVG;
+				}
+			}
+			else
+			{
+				resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
+				cout<<"Desktop resolution: "<<resolution<<endl;
+
+				//Get random new image
+				srand(time(NULL));
+
+				do
+				{
+					rndHold=rand()%ctr;
+				}while(rndHold==rndHoldOld);
+
+				rndHoldOld=rndHold;
+				newpic=picpath+pics[rndHold];
+				background=Image(newpic);
+				cout<<"Using: "<<pics[rndHold]<<endl;
+
+				//Scale to desktop resolution
 				cout<<"Image size (original): "<<background.columns()<<"x"<<background.rows()<<endl;
 				background.resize(resolution.substr(0,resolution.find("x"))+"x"+resolution.substr(resolution.find("x")+1,resolution.length()-(resolution.find("x")))+"!");
-				background.write(picpath+".cache/resizeOld"+to_string(i)+".jpg");
-				lastbackground=background;
-				oldpic=picpath+".cache/resizeOld"+to_string(i)+".jpg";
+				background.write(picpath+".cache/resizeNew.jpg");
+				newpic=picpath+".cache/resizeNew.jpg";
 				bgW=background.columns();
-	        		bgH=background.rows();
+				bgH=background.rows();
 				cout<<"Image size (resized): "<<bgW<<"x"<<bgH<<endl;
 
-				//Display image
-				cout<<"Setting screen "<<i<<endl;
-				system(("nitrogen  --head="+to_string(i)+" --set-scaled "+picpath+".cache/resizeOld"+to_string(i)+".jpg").c_str());
-
-				foregroundColorSet(i);
-				foregroundColorApply(i);
-				oldAVG[i]=AVG;
-			}
-		}
-		else
-		{
-			resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
-                	cout<<"Desktop resolution: "<<resolution<<endl;
-
-			//Get random new image
-			srand(time(NULL));
-
-			do
-			{
-				rndHold=rand()%ctr;
-			}while(rndHold==rndHoldOld);
-
-			rndHoldOld=rndHold;
-			newpic=picpath+pics[rndHold];
-			background=Image(newpic);
-			cout<<"Using: "<<pics[rndHold]<<endl;
-
-			//Scale to desktop resolution
-			cout<<"Image size (original): "<<background.columns()<<"x"<<background.rows()<<endl;
-			background.resize(resolution.substr(0,resolution.find("x"))+"x"+resolution.substr(resolution.find("x")+1,resolution.length()-(resolution.find("x")))+"!");
-			background.write(picpath+".cache/resizeNew.jpg");
-			newpic=picpath+".cache/resizeNew.jpg";
-			bgW=background.columns();
-	        	bgH=background.rows();
-			cout<<"Image size (resized): "<<bgW<<"x"<<bgH<<endl;
-
-			//Solve for transition steps
-			for(int i=0; i<=steps; i++)
-			{
-				cout<<"Compositing transition step "<<i<<"... ";
-				system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg"+" "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
-				cout<<"Done!"<<endl;
-				usleep(delay/steps);
-			}
-
-			if(fadeForeground)
-			{
-				foregroundColorSet(S);
-			}
-
-			//Fade new image in
-			cout<<"Fading new image in on "<<S<<endl;
-			for (int i=0; i<=steps; i++)
-			{
-				system(("nitrogen  --head="+to_string(S)+" --set-scaled "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
+				//Solve for transition steps
+				for(int i=0; i<=steps; i++)
+				{
+					cout<<"Compositing transition step "<<i<<"... ";
+					system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg"+" "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
+					cout<<"Done!"<<endl;
+					usleep(delay/steps);
+				}
 
 				if(fadeForeground)
 				{
-					//Solve for inbetween foreground colors
-					fadePoint=(double)i/steps;
-					cout<<"Fade point: "<<fadePoint<<endl;
-					cout<<"Equation (red): "<<"((("<<AVG.red()*255<<")*"<<fadePoint<<")+(("<<oldAVG[S].red()*255<<")*(1-"<<fadePoint<<")))"<<endl;
-					avgRTrans=(int)(((AVG.red()*255)*fadePoint)+((oldAVG[S].red()*255)*(1-fadePoint)));
-                			avgGTrans=(int)(((AVG.green()*255)*fadePoint)+((oldAVG[S].green()*255)*(1-fadePoint)));
-                			avgBTrans=(int)(((AVG.blue()*255)*fadePoint)+((oldAVG[S].blue()*255)*(1-fadePoint)));
-
-					cout<<"Average (RGB): ("<<avgRTrans<<","<<avgGTrans<<","<<avgBTrans<<")"<<endl;
-
-					//Convert averages to hex
-				        stream<<std::hex<<(int)(avgRTrans);
-				        avgRHex[S]=stream.str();
-				        stream.str("");
-				        stream<<std::hex<<(int)(avgGTrans);
-				        avgGHex[S]=stream.str();
-			       		stream.str("");
-				        stream<<std::hex<<(int)(avgBTrans);
-			        	avgBHex[S]=stream.str();
-			        	stream.str("");
-			        	cout<<"Average (hex): #"<<avgRHex[S]<<avgGHex[S]<<avgBHex[S]<<endl;
-
-					//Save against all black text for troubleshooting
-					if(avgGHex[S]=="0"&&avgGHex[S]=="0"&&avgBHex[S]=="0")
-        				{
-						cout<<"Black Save!"<<endl;
-                				avgRHex[S]="ff";
-                				avgGHex[S]="ff";
-                				avgBHex[S]="ff";
-        				}
-					cout<<endl;
-
-					foregroundColorApply(S);
+					foregroundColorSet(S);
 				}
 
-				usleep(subdelay);
+				//Fade new image in
+				cout<<"Fading new image in on "<<S<<endl;
+				for (int i=0; i<=steps; i++)
+				{
+					system(("nitrogen  --head="+to_string(S)+" --set-scaled "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
+
+					if(fadeForeground)
+					{
+						//Solve for inbetween foreground colors
+						fadePoint=(double)i/steps;
+						cout<<"Fade point: "<<fadePoint<<endl;
+						cout<<"Equation (red): "<<"((("<<AVG.red()*255<<")*"<<fadePoint<<")+(("<<oldAVG[S].red()*255<<")*(1-"<<fadePoint<<")))"<<endl;
+						avgRTrans=(int)(((AVG.red()*255)*fadePoint)+((oldAVG[S].red()*255)*(1-fadePoint)));
+						avgGTrans=(int)(((AVG.green()*255)*fadePoint)+((oldAVG[S].green()*255)*(1-fadePoint)));
+						avgBTrans=(int)(((AVG.blue()*255)*fadePoint)+((oldAVG[S].blue()*255)*(1-fadePoint)));
+
+						cout<<"Average (RGB): ("<<avgRTrans<<","<<avgGTrans<<","<<avgBTrans<<")"<<endl;
+
+						//Convert averages to hex
+						stream<<std::hex<<(int)(avgRTrans);
+						avgRHex[S]=stream.str();
+						stream.str("");
+						stream<<std::hex<<(int)(avgGTrans);
+						avgGHex[S]=stream.str();
+						stream.str("");
+						stream<<std::hex<<(int)(avgBTrans);
+						avgBHex[S]=stream.str();
+						stream.str("");
+						cout<<"Average (hex): #"<<avgRHex[S]<<avgGHex[S]<<avgBHex[S]<<endl;
+
+						//Save against all black text for troubleshooting
+						if(avgGHex[S]=="0"&&avgGHex[S]=="0"&&avgBHex[S]=="0")
+						{
+							cout<<"Black Save!"<<endl;
+							avgRHex[S]="ff";
+							avgGHex[S]="ff";
+							avgBHex[S]="ff";
+						}
+						cout<<endl;
+
+						foregroundColorApply(S);
+					}
+
+					usleep(subdelay);
+				}
+
+				//Set "new" old picture
+				oldpic=newpic;
+				lastbackground=background;
+				system(("cp "+picpath+".cache/resizeNew.jpg"+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg").c_str());
 			}
 
-			//Set "new" old picture
-			oldpic=newpic;
-			lastbackground=background;
-			system(("cp "+picpath+".cache/resizeNew.jpg"+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg").c_str());
+			if(!fadeForeground||(oldAVG[S].red()==0&&oldAVG[S].green()==0&&oldAVG[S].blue()==0))
+			{
+				foregroundColorSet(S);
+				foregroundColorApply(S);
+			}
+
+			//Set "new" old values
+			oldAVG[S]=AVG;
+
+			cout<<"Done!\n"<<endl;
+
 		}
-
-		if(!fadeForeground||(oldAVG[S].red()==0&&oldAVG[S].green()==0&&oldAVG[S].blue()==0))
-		{
-			foregroundColorSet(S);
-			foregroundColorApply(S);
-		}
-
-		//Set "new" old values
-		oldAVG[S]=AVG;
-
-		cout<<"Done!\n"<<endl;
-
-	}
 
 	//clear cache
 	system(("rm -f "+picpath+".cache/transition*").c_str());
