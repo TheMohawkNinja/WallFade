@@ -87,17 +87,49 @@ bool to_bool(std::string str)
 
 void calcAvg(int c)
 {
+	double thresholdBoostRatio=((double)threshold/255);
 	cout<<"Total: "<<(int)avgR<<", "<<(int)avgG<<", "<<(int)avgB<<endl;
 	cout<<"Divider: "<<c<<endl;
+	cout<<"Threshold: "<<threshold<<endl;
 	avgR/=(int)(c*255);
         avgG/=(int)(c*255);
         avgB/=(int)(c*255);
-        cout<<"Average (RGB): ("<<(int)(avgR*255)<<","<<(int)(avgG*255)<<","<<(int)(avgB*255)<<")"<<endl;
+        
+	//Boost color to threshold if all channels are below threshold
+	if((int)(avgR*255)<threshold&&(int)(avgG*255)<threshold&&(int)(avgB*255)<threshold)
+	{
+		if(avgR>avgG&&avgR>avgB)
+		{
+			cout<<"Boosting red: "<<avgR<<"+=("<<thresholdBoostRatio<<")-"<<avgR<<endl;
+			avgR+=thresholdBoostRatio-avgR;
+			avgG+=thresholdBoostRatio-avgR;
+			avgB+=thresholdBoostRatio-avgR;
+		}
+		else if(avgG>avgR&&avgG>avgB)
+		{
+			cout<<"Boosting green: "<<avgR<<"+=("<<thresholdBoostRatio<<")-"<<avgG<<endl;
+			avgR+=thresholdBoostRatio-avgG;
+			avgG+=thresholdBoostRatio-avgG;
+			avgB+=thresholdBoostRatio-avgG;
+	
+		}
+		else
+		{
+			cout<<"Boosting blue: "<<avgR<<"+=("<<thresholdBoostRatio<<")-"<<avgB<<endl;
+			avgR+=thresholdBoostRatio-avgB;
+			avgG+=thresholdBoostRatio-avgB;
+			avgB+=thresholdBoostRatio-avgB;
+		}
+	}
+	cout<<"Pre-multiply result: "<<avgR<<", "<<avgG<<", "<<avgB<<endl;
+	cout<<"Average (RGB): ("<<(int)(avgR*255)<<","<<(int)(avgG*255)<<","<<(int)(avgB*255)<<")"<<endl;
+
         AVG=Magick::ColorRGB(avgR,avgG,avgB);
 }
 
 void averageColors(char color)
 {
+	int avgCtr=0;
 	avgR=0;
 	avgG=0;
 	avgB=0;
@@ -113,11 +145,12 @@ void averageColors(char color)
 					avgR+=ColorSample[x][y].red()*255;
 					avgG+=ColorSample[x][y].green()*255;
 					avgB+=ColorSample[x][y].blue()*255;
+					avgCtr++;
 				}
 			}
 		}
 
-                calcAvg(Rctr);
+		calcAvg(avgCtr);
 	}
 	else if(color=='g')
         {
@@ -130,11 +163,12 @@ void averageColors(char color)
                                         avgR+=ColorSample[x][y].red()*255;
                                         avgG+=ColorSample[x][y].green()*255;
                                         avgB+=ColorSample[x][y].blue()*255;
+					avgCtr++;
                                 }
                         }
                 }
 
-		calcAvg(Gctr);
+		calcAvg(avgCtr);
         }
 	else if(color=='b')
         {
@@ -147,11 +181,12 @@ void averageColors(char color)
                                         avgR+=ColorSample[x][y].red()*255;
                                         avgG+=ColorSample[x][y].green()*255;
                                         avgB+=ColorSample[x][y].blue()*255;
+					avgCtr++;
                                 }
                         }
                 }
 
-		calcAvg(Bctr);
+		calcAvg(avgCtr);
         }
 }
 
