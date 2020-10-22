@@ -1,6 +1,7 @@
 //Dependancies: ImageMagick, OSC Escape Sequence Support
 
 #include <cstdlib>
+#include <stdarg.h>
 #include <Magick++.h>
 #include <iostream>
 #include <sstream>
@@ -16,7 +17,7 @@ using namespace Magick;
 
 ifstream readstream;
 ofstream writestream;
-int confIndex_int, Rctr, Gctr, Bctr, ctr, bgW, bgH, rndHold, rndHoldOld, screens;
+int confIndex_int, Rctr, Gctr, Bctr, ctr, bgW, bgH, rndHold, rndHoldOld, screens, maxPics;
 int milisecond=1000;
 int second=1000*milisecond;
 int threshold=100;
@@ -30,6 +31,7 @@ int term[maxTerms], termX[maxTerms], termY[maxTerms];
 double avgR, avgG, avgB, avgRTrans, avgGTrans, avgBTrans, r, g, b, fadePoint;
 bool colorForce=false;
 bool fadeForeground=false;
+bool silent=true;
 string line;
 string avgRHex[maxMonitors];
 string avgGHex[maxMonitors];
@@ -37,7 +39,7 @@ string avgBHex[maxMonitors];
 string newpic;
 string oldpic;
 string resolution;
-string pics[100];
+string* pics;
 string termID[maxTerms];
 string user=getlogin();
 string configpath="/home/"+user+"/.config/WallFade/";
@@ -50,6 +52,19 @@ Image background;
 Image lastbackground;
 Display* d=XOpenDisplay(NULL);
 Screen* s=DefaultScreenOfDisplay(d);
+
+void output(FILE* stream, const char* format, ...)
+{
+	va_list args;
+	va_start(args, format);
+
+	if(!silent)
+	{
+		vfprintf(stream,format,args);
+	}
+
+	va_end(args);
+}
 
 string getCmdOut(string cmd)
 {
@@ -88,9 +103,9 @@ bool to_bool(std::string str)
 void calcAvg(int c)
 {
 	double thresholdBoostRatio=((double)threshold/255);
-	cout<<"Total: "<<(int)avgR<<", "<<(int)avgG<<", "<<(int)avgB<<endl;
-	cout<<"Divider: "<<c<<endl;
-	cout<<"Threshold: "<<threshold<<endl;
+	output(stdout,"Total: %d, %d, %d\n",(int)avgR,(int)avgG,(int)avgB);
+	output(stdout,"Divider: %d\n",c);
+	output(stdout,"Threshold: %d\n",threshold);
 	avgR/=(int)(c*255);
         avgG/=(int)(c*255);
         avgB/=(int)(c*255);
@@ -100,14 +115,14 @@ void calcAvg(int c)
 	{
 		if(avgR>avgG&&avgR>avgB)
 		{
-			cout<<"Boosting red: "<<avgR<<"+=("<<thresholdBoostRatio<<")-"<<avgR<<endl;
+			output(stdout,"Boosting on red by adding (%f-%d) to all color channels\n",thresholdBoostRatio,avgR);
 			avgR+=thresholdBoostRatio-avgR;
 			avgG+=thresholdBoostRatio-avgR;
 			avgB+=thresholdBoostRatio-avgR;
 		}
 		else if(avgG>avgR&&avgG>avgB)
 		{
-			cout<<"Boosting green: "<<avgR<<"+=("<<thresholdBoostRatio<<")-"<<avgG<<endl;
+			output(stdout,"Boosting on green by adding (%f-%d) to all color channels\n",thresholdBoostRatio,avgG);
 			avgR+=thresholdBoostRatio-avgG;
 			avgG+=thresholdBoostRatio-avgG;
 			avgB+=thresholdBoostRatio-avgG;
@@ -115,14 +130,14 @@ void calcAvg(int c)
 		}
 		else
 		{
-			cout<<"Boosting blue: "<<avgR<<"+=("<<thresholdBoostRatio<<")-"<<avgB<<endl;
+			output(stdout,"Boosting on blue by adding (%f-%d) to all color channels\n",thresholdBoostRatio,avgB);
 			avgR+=thresholdBoostRatio-avgB;
 			avgG+=thresholdBoostRatio-avgB;
 			avgB+=thresholdBoostRatio-avgB;
 		}
 	}
-	cout<<"Pre-multiply result: "<<avgR<<", "<<avgG<<", "<<avgB<<endl;
-	cout<<"Average (RGB): ("<<(int)(avgR*255)<<","<<(int)(avgG*255)<<","<<(int)(avgB*255)<<")"<<endl;
+	output(stdout,"Pre-multiply result: %f, %f, %f\n",avgR,avgG,avgB);
+	output(stdout,"Average (RGB): (%d,%d,%d)\n",(int)(avgR*255),(int)(avgG*255),(int)(avgB*255));
 
         AVG=Magick::ColorRGB(avgR,avgG,avgB);
 }
@@ -193,10 +208,10 @@ void averageColors(char color)
 void updateTermColors()
 {
 	//Refresh TermColors
-        system(("rm -f "+configpath+"TermColors").c_str());
+	remove((configpath+"TermColors").c_str());
 
-        for(int s=0; s<screens; s++)
-        {
+	for(int s=0; s<screens; s++)
+	{
         	system(("echo "+to_string(monitorXRes[s])+" >> "+configpath+"TermColors").c_str());
                 system(("echo "+to_string(monitorYRes[s])+" >> "+configpath+"TermColors").c_str());
                 system(("echo "+to_string(monitorXOff[s])+" >> "+configpath+"TermColors").c_str());
@@ -253,22 +268,22 @@ void foregroundColorSet(int s)
 	{
 		if(Rctr>Gctr&&Rctr>Bctr)//Red
 		{
-			cout<<"Major color: Red ("<<Rctr<<")"<<endl;
+			output(stdout,"Major color: Red (%d)\n",Rctr);
 			averageColors('r');
 		}
 		else if(Gctr>Rctr&&Gctr>Bctr)//Green
                 {
-			cout<<"Major color: Green ("<<Gctr<<")"<<endl;
+			output(stdout,"Major color: Green (%d)\n",Gctr);
                         averageColors('g');
                 }
 		else if(Gctr>Rctr&&Gctr>Bctr)//Blue
                 {
-			cout<<"Major color: Blue ("<<Bctr<<")"<<endl;
+			output(stdout,"Major color: Blue (%d)\n",Bctr);
                         averageColors('b');
                 }
 		else
 		{
-			cout<<"Major color: Other"<<endl;
+			output(stdout,"Major color: Other\n");
 			calcAvg(ctr);
 		}
 	}
@@ -287,12 +302,12 @@ void foregroundColorSet(int s)
 	stream<<std::hex<<(int)(avgB*255);
         avgBHex[s]=stream.str();
 	stream.str("");
-	cout<<"Average (hex): #"<<avgRHex[s]<<avgGHex[s]<<avgBHex[s]<<endl;
+	output(stdout,"Average (hex): #%s%s%s\n",avgRHex[s].c_str(),avgGHex[s].c_str(),avgBHex[s].c_str());
 
 	//Save against all black text for troubleshooting
         if(avgGHex[s]=="0"&&avgGHex[s]=="0"&&avgBHex[s]=="0")
         {
-        	cout<<"Black Save!"<<endl;
+		output(stderr,"Black Save!\n");
                 avgRHex[s]="ff";
                 avgGHex[s]="ff";
                 avgBHex[s]="ff";
@@ -302,30 +317,29 @@ void foregroundColorSet(int s)
 void foregroundColorApply(int m)
 {
 	//Set currently open terminals to the new color
-	cout<<"Calling OSC escape sequences to change terminal colors on monitor "<<m<<endl;
+	output(stdout,"Calling OSC escape sequences to change terminal colors on monitor: %d\n",m);
 	for(int i=0; i<maxTerms; i++)
 	{
 		if(term[i]!=0)
 		{
-			cout<<"Terminal "<<term[i]<<" check"<<endl;
+			output(stdout,"Terminal %d check...\n",term[i]);
 			if(termX[i]>monitorXOff[m]&&termX[i]<(monitorXOff[m]+monitorXRes[m]))
 			{
-				cout<<"PASS: "<<termX[i]<<">"<<monitorXOff[m]<<"&&"<<termX[i]<<"<"<<monitorXOff[m]+monitorXRes[m]<<endl;
+				output(stdout,"PASS: %d>%d && %d<%d\n",termX[i],monitorXOff[m],termX[i],(monitorXOff[m]+monitorXRes[m]));
 				if(termY[i]>monitorYOff[m]&&termY[i]<(monitorYOff[m]+monitorYRes[m]))
 	                       	{
-					cout<<"PASS: "<<termY[i]<<">"<<monitorYOff[m]<<"&&"<<termY[i]<<"<"<<monitorYOff[m]+monitorYRes[m]<<endl;
-
-					cout<<"\t on "<<i<<endl;
+					output(stdout,"PASS: %d>%d && %d<%d\n",termY[i],monitorYOff[m],termY[i],(monitorYOff[m]+monitorYRes[m]));
+					output(stdout,"\t on %d\n",i);
       		 			system(("printf \"\033]10;#"+avgRHex[m]+avgGHex[m]+avgBHex[m]+"\007\" > /dev/pts/"+to_string(term[i])).c_str());
        	       			}
 				else
 				{
-					cout<<"FAIL: "<<termY[i]<<"<="<<monitorYOff[m]<<"||"<<termY[i]<<">="<<monitorYOff[m]+monitorYRes[m]<<endl;
+					output(stdout,"FAIL: %d<=%d || %d>=%d\n",termY[i],monitorYOff[m],termY[i],(monitorYOff[m]+monitorYRes[m]));
 				}
 			}
 			else
                	 	{
-               	        	 cout<<"FAIL: "<<termX[i]<<"<="<<monitorXOff[m]<<"||"<<termX[i]<<">="<<monitorXOff[m]+monitorXRes[m]<<endl;
+				output(stdout,"FAIL %d<=%d || %d>=%d\n",termX[i],monitorXOff[m],termX[i],(monitorXOff[m]+monitorXRes[m]));
                	 	}
 		}
 	}
@@ -344,7 +358,7 @@ void readConfig()
                 	{
 				confIndex=line.find("=",0);
 				picpath=line.substr(confIndex+1,(line.length()-confIndex));
-                        	cout<<"Setting image path to "<<picpath<<endl;
+                        	output(stdout,"Setting image path to: %s\n",picpath.c_str());
                 	}
 
 			if(line.find("steps") != std::string::npos)
@@ -359,11 +373,11 @@ void readConfig()
 				if(100%confIndex_int==0)
 				{
         	                	steps=confIndex_int;
-        	                	cout<<"Setting steps to "<<steps<<endl;
+					output(stdout,"Setting steps to: %d\n",steps);
 				}
 				else
 				{
-					cout<<"\""+line.substr(confIndex,(line.length()-confIndex))+"\" does not evenly divide into 100, using default step count"<<endl;
+					output(stderr,"\"%s\" does not evenly divide into 100, using default step count\n",(line.substr(confIndex,(line.length()-confIndex))).c_str());
 				}
                 	}
 
@@ -375,7 +389,7 @@ void readConfig()
                         	std::istringstream s ((line.substr(confIndex+1,(line.length()-confIndex))));
                        	 	s >> delay;
 
-                       		cout<<"Setting delay to "<<delay<<" seconds"<<endl;
+				output(stdout,"Setting delay to %d seconds\n",delay);
 				delay*=second;
                		}
 
@@ -387,7 +401,7 @@ void readConfig()
                         	std::istringstream s ((line.substr(confIndex+1,(line.length()-confIndex))));
                         	s >> subdelay;
 
-                        	cout<<"Setting subdelay to "<<subdelay<<" miliseconds"<<endl;
+				output(stdout,"Setting subdelay to %d miliseconds\n",delay);
                         	subdelay*=milisecond;
                 	}
 
@@ -399,21 +413,28 @@ void readConfig()
                                 std::istringstream s ((line.substr(confIndex+1,(line.length()-confIndex))));
                                 s >> threshold;
 
-                                cout<<"Setting threshold to "<<threshold<<endl;
+				output(stdout,"Setting threshold to %d\n",threshold);
                         }
 
 			if(line.find("colorForce") != std::string::npos)
                         {
                                 colorForce=to_bool(line.substr(line.find("=",0)+1,(line.length()-(line.find("=",0)+1))));
 
-                                cout<<"Setting colorForce to "<<std::boolalpha<<colorForce<<endl;
+				output(stdout,"Setting colorForce to %s\n",colorForce ? "true" : "false");
                         }
 
 			if(line.find("fadeForeground") != std::string::npos)
                         {
                                 fadeForeground=to_bool(line.substr(line.find("=",0)+1,(line.length()-(line.find("=",0)+1))));
 
-                                cout<<"Setting fadeForeground to "<<std::boolalpha<<fadeForeground<<endl;
+				output(stdout,"Setting fadeForeground to %s\n",fadeForeground ? "true" : "false");
+                        }
+
+			if(line.find("silent") != std::string::npos)
+                        {
+                                silent=to_bool(line.substr(line.find("=",0)+1,(line.length()-(line.find("=",0)+1))));
+
+				output(stdout,"Setting silent to %s\n",silent ? "true" : "false");
                         }
 		}
         }
@@ -422,7 +443,7 @@ void readConfig()
 
 void makeConfig()
 {
-	cout<<configpath<<"config not found, creating..."<<endl;
+	output(stderr,"%s not found, creating...\n",(configpath+"config").c_str());
 	writestream.open((configpath+"config").c_str());
 	writestream<<"#Path where your wallpapers are located. Default: "+picpath+"\n";
 	writestream<<"path="+picpath+"\n\n";
@@ -438,6 +459,8 @@ void makeConfig()
         writestream<<"colorForce="+to_string(colorForce)+"\n";
 	writestream<<"#If true, will fade in the foreground color with the background fade in. If false, the foreground color will instantly change to the new color once the fade in has completed. Default: "+to_string(fadeForeground)+"\n";
         writestream<<"fadeForeground="+to_string(fadeForeground)+"\n";
+	writestream<<"#If true, no output will be generated (so you don't have to deal with giant nohup.out files otherwise). Default: "+to_string(silent)+"\n";
+	writestream<<"silent="+to_string(silent)+"\n";
 	writestream.close();
 }
 
@@ -450,39 +473,42 @@ int main(int argc, char **argv)
         ss >> screens;
 
 	//Get monitor info
-	cout<<"Monitor X resolutions"<<endl;
+	output(stdout,"Monitor X resolutions\n");
 	for(int i=0; i<screens; i++)
 	{
 		std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x' | grep -Eo '[0-9]{2,4}' | sed -n '"+to_string(i+1)+" p'"));
 		ss >> monitorXRes[i];
-		cout<<monitorXRes[i]<<endl;
+		output(stdout,"%d\n",monitorXRes[i]);
 	}
-	cout<<"Monitor Y resolutions"<<endl;
+
+	output(stdout,"Monitor Y resolutions\n");
         for(int i=0; i<screens; i++)
         {
                 std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}' | grep -Eo 'x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}' | sed -n '"+to_string(i+1)+" p'"));
                 ss >> monitorYRes[i];
-                cout<<monitorYRes[i]<<endl;
+		output(stdout,"%d\n",monitorYRes[i]);
         }
-	cout<<"Monitor X offsets"<<endl;
+
+	output(stdout,"Monitor X offsets\n");
 	for(int i=0; i<screens; i++)
 	{
 		std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}[+][0-9]{0,4}[+][0-9]{0,4}' | grep -Eo '[+][0-9]{0,4}[+]' | grep -Eo '[0-9]{0,4}' | sed -n '"+to_string(i+1)+" p'"));
                 ss >> monitorXOff[i];
-                cout<<monitorXOff[i]<<endl;
+		output(stdout,"%d\n",monitorXOff[i]);
 	}
-	cout<<"Monitor Y offsets"<<endl;
+
+	output(stdout,"Monitor Y offsets\n");
         for(int i=0; i<screens; i++)
         {
                 std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}[+][0-9]{0,4}[+][0-9]{0,4}' | grep -Eo '[+][0-9]{0,4}( |$)' | grep -Eo '[0-9]{0,4}' | sed -n '"+to_string(i+1)+" p'"));
                 ss >> monitorYOff[i];
-                cout<<monitorYOff[i]<<endl;
+		output(stdout,"%d\n",monitorYOff[i]);
         }
 
 	//Check for config file and make one if it does not exist
 	if(!fexists((configpath).c_str()))
 	{
-		cout<<configpath<<" not found, creating..."<<endl;
+		output(stdout,"%s not found, creating...\n",configpath.c_str());
 		system(("mkdir "+configpath).c_str());
 
 		if(!fexists((configpath+"config").c_str()))
@@ -516,7 +542,7 @@ int main(int argc, char **argv)
 	system(("cd "+picpath+" && ls | grep -E 'jpg|png' | grep -Ev 'transition|resize' > .cache/.pics").c_str());
 
 	//Delete old TermInfo file and start updater program
-	cout<<"Starting updateTermInfo"<<endl;
+	output(stdout,"Starting updateTermInfo\n");
 	system("nohup updateTermInfo &");
 
 	while(true)
@@ -526,7 +552,7 @@ int main(int argc, char **argv)
 			//updateTermColors();
 
 			//Determine which terminal is on what monitor
-			cout<<"Getting terminal positions"<<endl;
+			output(stdout,"Getting terminal positions\n");
 			readstream.open(configpath+"TermInfo");
 			for(int i=0; getline(readstream,line); i++)
 			{
@@ -545,12 +571,12 @@ int main(int argc, char **argv)
 				std::istringstream sy (line);
 				sy >> termY[i];
 
-				cout<<"\t/dev/pts/"<<term[i]<<" ("<<termID[i]<<"): "<<termX[i]<<","<<termY[i]<<endl;
+				output(stdout,"\t/dev/pts/%d (%s): %d, %d\n",term[i],termID[i].c_str(),termX[i],termY[i]);
 			}
 			readstream.close();
 
-			cout<<"\nWorking on screen "<<S<<endl;
-			cout<<"Loading list of pics from: "+picpath+".cache/.pics"<<endl;
+			output(stdout,"\nWorking on screen: %d\n",S);
+			output(stdout,"Loading list of pics from: %s.cache/.pics\n",picpath.c_str());
 
 			ctr=0;
 
@@ -558,14 +584,29 @@ int main(int argc, char **argv)
 			readstream.open(picpath+".cache/.pics");
 			if(readstream.fail())
 			{
-				cerr<<"ERROR: Unable to open \'"+picpath+".cache/.pics\'. Error code: "<<errno<<endl;
+				output(stderr,"ERROR: Unable to open \'%s.cache/,pics\'. Error code: %d\n",picpath.c_str(),errno);
+			}
+			else
+			{
+				for(int i=0; getline(readstream,line); i++)
+				{
+					maxPics++;
+				}
+				pics=new std::string[maxPics];
+				readstream.close();
+			}
+
+			readstream.open(picpath+".cache/.pics");
+			if(readstream.fail())
+			{
+				output(stderr,"ERROR: Unable to open \'%s.cache/,pics\'. Error code: %d\n",picpath.c_str(),errno);
 			}
 			else
 			{
 				for(int i=0; getline(readstream,line); i++)
 				{
 					pics[i]=line;
-					cout<<"\tPic name "<<i<<": "<<pics[i]<<endl;
+					output(stdout,"\tPic name %d: %s\n",i,pics[i].c_str());
 					ctr++;
 				}
 				readstream.close();
@@ -577,7 +618,7 @@ int main(int argc, char **argv)
 			if(oldpic=="")
 			{
 				resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
-				cout<<"Desktop resolution: "<<resolution<<endl;
+				output(stdout,"Desktop resolution: %s\n",resolution.c_str());
 
 				//Get random image to start with
 				srand(time(NULL));
@@ -585,22 +626,22 @@ int main(int argc, char **argv)
 				rndHoldOld=rndHold;
 				oldpic=picpath+pics[rndHold];
 				background=Image(oldpic);
-				cout<<"Using: "<<pics[rndHold]<<endl;
+				output(stdout,"Using: %s\n",pics[rndHold].c_str());
 
 				//Scale to desktop resolution
 				for(int i=0; i<screens; i++)
 				{
-					cout<<"Image size (original): "<<background.columns()<<"x"<<background.rows()<<endl;
+					output(stdout,"\tImage size (original): %dx%d\n",background.columns(),background.rows());
 					background.resize(resolution.substr(0,resolution.find("x"))+"x"+resolution.substr(resolution.find("x")+1,resolution.length()-(resolution.find("x")))+"!");
 					background.write(picpath+".cache/resizeOld"+to_string(i)+".jpg");
 					lastbackground=background;
 					oldpic=picpath+".cache/resizeOld"+to_string(i)+".jpg";
 					bgW=background.columns();
 					bgH=background.rows();
-					cout<<"Image size (resized): "<<bgW<<"x"<<bgH<<endl;
+					output(stdout,"\tImage size (resized): %dx%d\n\n",bgW,bgH);
 
 					//Display image
-					cout<<"Setting screen "<<i<<endl;
+					output(stdout,"Setting screen %d\n",i);
 					system(("nitrogen  --head="+to_string(i)+" --set-scaled "+picpath+".cache/resizeOld"+to_string(i)+".jpg").c_str());
 
 					foregroundColorSet(i);
@@ -611,7 +652,7 @@ int main(int argc, char **argv)
 			else
 			{
 				resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
-				cout<<"Desktop resolution: "<<resolution<<endl;
+				output(stdout,"Desktop resolution: %s\n",resolution.c_str());
 
 				//Get random new image
 				srand(time(NULL));
@@ -624,23 +665,23 @@ int main(int argc, char **argv)
 				rndHoldOld=rndHold;
 				newpic=picpath+pics[rndHold];
 				background=Image(newpic);
-				cout<<"Using: "<<pics[rndHold]<<endl;
+				output(stdout,"Using: %s\n",pics[rndHold].c_str());
 
 				//Scale to desktop resolution
-				cout<<"Image size (original): "<<background.columns()<<"x"<<background.rows()<<endl;
+				output(stdout,"\tImage size (original): %dx%d\n",background.columns(),background.rows());
 				background.resize(resolution.substr(0,resolution.find("x"))+"x"+resolution.substr(resolution.find("x")+1,resolution.length()-(resolution.find("x")))+"!");
 				background.write(picpath+".cache/resizeNew.jpg");
 				newpic=picpath+".cache/resizeNew.jpg";
 				bgW=background.columns();
 				bgH=background.rows();
-				cout<<"Image size (resized): "<<bgW<<"x"<<bgH<<endl;
+				output(stdout,"\tImage size (resized): %dx%d\n\n",bgW,bgH);
 
 				//Solve for transition steps
 				for(int i=0; i<=steps; i++)
 				{
-					cout<<"Compositing transition step "<<i<<"... ";
+					output(stdout,"Compositing transition step %d... ",i);
 					system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg"+" "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
-					cout<<"Done!"<<endl;
+					output(stdout,"Done!\n");
 					usleep(delay/steps);
 				}
 
@@ -650,7 +691,7 @@ int main(int argc, char **argv)
 				}
 
 				//Fade new image in
-				cout<<"Fading new image in on "<<S<<endl;
+				output(stdout,"Fading new image in on %d\n",S);
 				for (int i=0; i<=steps; i++)
 				{
 					system(("nitrogen  --head="+to_string(S)+" --set-scaled "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
@@ -659,13 +700,13 @@ int main(int argc, char **argv)
 					{
 						//Solve for inbetween foreground colors
 						fadePoint=(double)i/steps;
-						cout<<"Fade point: "<<fadePoint<<endl;
-						cout<<"Equation (red): "<<"((("<<AVG.red()*255<<")*"<<fadePoint<<")+(("<<oldAVG[S].red()*255<<")*(1-"<<fadePoint<<")))"<<endl;
+						output(stdout,"Fade point: %f\n",fadePoint);
+						//cout<<"Equation (red): "<<"((("<<AVG.red()*255<<")*"<<fadePoint<<")+(("<<oldAVG[S].red()*255<<")*(1-"<<fadePoint<<")))"<<endl;
 						avgRTrans=(int)(((AVG.red()*255)*fadePoint)+((oldAVG[S].red()*255)*(1-fadePoint)));
 						avgGTrans=(int)(((AVG.green()*255)*fadePoint)+((oldAVG[S].green()*255)*(1-fadePoint)));
 						avgBTrans=(int)(((AVG.blue()*255)*fadePoint)+((oldAVG[S].blue()*255)*(1-fadePoint)));
 
-						cout<<"Average (RGB): ("<<avgRTrans<<","<<avgGTrans<<","<<avgBTrans<<")"<<endl;
+						output(stdout,"Average (RGB): (%d,%d,%d)\n",avgRTrans,avgGTrans,avgBTrans);
 
 						//Convert averages to hex
 						stream<<std::hex<<(int)(avgRTrans);
@@ -677,12 +718,12 @@ int main(int argc, char **argv)
 						stream<<std::hex<<(int)(avgBTrans);
 						avgBHex[S]=stream.str();
 						stream.str("");
-						cout<<"Average (hex): #"<<avgRHex[S]<<avgGHex[S]<<avgBHex[S]<<endl;
+						output(stdout,"Average (hex): #%s%s%s\n",avgRHex[S].c_str(),avgGHex[S].c_str(),avgBHex[S].c_str());
 
 						//Save against all black text for troubleshooting
 						if(avgGHex[S]=="0"&&avgGHex[S]=="0"&&avgBHex[S]=="0")
 						{
-							cout<<"Black Save!"<<endl;
+							output(stderr,"Black Save!\n");
 							avgRHex[S]="ff";
 							avgGHex[S]="ff";
 							avgBHex[S]="ff";
@@ -710,12 +751,11 @@ int main(int argc, char **argv)
 			//Set "new" old values
 			oldAVG[S]=AVG;
 
-			cout<<"Done!\n"<<endl;
-
+			output(stdout,"Done!\n\n");
 		}
 
-	//clear cache
-	system(("rm -f "+picpath+".cache/transition*").c_str());
+		//clear cache
+		system(("rm -f "+picpath+".cache/transition*").c_str());
 	}
 
 	XCloseDisplay(d);

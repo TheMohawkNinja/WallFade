@@ -31,12 +31,11 @@ CONFIG
 		threshold: The threshold for each 8-bit color channel that the system will use to determine which pixels will be selected for determining terminal color.
 		colorForce: If true, will attempt to force a saturated foreground color. Meant to keep colorful images from producing grey text.
 		fadeForeground: If true, will fade in the foreground color with the background fade in. If false, the foreground color will instantly change to the new color once the fade in has completed.
+		silent: If true, will supress debugging output
 
 ISSUES
 	It's not the most lightweight thing in the world. I developed this on a Dell Latitude E6540, and while the htop output for the program itself always shows <10%, the overall core usage clearly increases by ~10% during it's usage.
 	It may not be an issue for machines with a descrete GPU, however.
-
-	Due to how terminal information is updated, if you need to restart updateTermInfo or WallFade altogether, this will necessitate a system reboot to function properly.
 
 TO CONTRIBUTORS
 
