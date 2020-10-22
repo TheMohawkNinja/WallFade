@@ -312,7 +312,7 @@ void foregroundColorSet(int s)
                 avgGHex[s]="ff";
                 avgBHex[s]="ff";
         }
-	cout<<endl;
+	output(stdout,"\n");
 }
 void foregroundColorApply(int m)
 {
@@ -612,7 +612,7 @@ int main(int argc, char **argv)
 				readstream.close();
 			}
 
-			cout<<endl;
+			output(stdout,"\n");
 
 			//Get monitor resolution
 			if(oldpic=="")
@@ -728,7 +728,7 @@ int main(int argc, char **argv)
 							avgGHex[S]="ff";
 							avgBHex[S]="ff";
 						}
-						cout<<endl;
+						output(stdout,"\n");
 
 						foregroundColorApply(S);
 					}
