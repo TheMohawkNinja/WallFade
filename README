@@ -5,7 +5,7 @@ DEPENDANCIES
 	
 	OSC functionality can be tested by entering "echo -e '\033]10;#0000ff\007'". This should turn the foreground of your terminal to blue.
 
-	Additionally, ImageMagick and nitrogen are required.
+	Additionally, Magick++ and nitrogen are required.
 
 INSTALLATION
 	Run the "install" script
@@ -39,4 +39,4 @@ ISSUES
 
 TO CONTRIBUTORS
 
-	Compile with "g++ WallFade.cpp `Magick++-config --cxxflags --cppflags --ldflags --libs` -lX11 -o WallFade"
+	Compile with "g++ WallFade.cpp `Magick++-config --cxxflags --cppflags --ldflags --libs` -lX11 -pthread -o WallFade"
