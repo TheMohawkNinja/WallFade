@@ -11,13 +11,14 @@
 #include <unistd.h>
 #include <X11/Xlib.h>
 #include <errno.h>
+#include <thread>
 
 using namespace std;
 using namespace Magick;
 
 ifstream readstream;
 ofstream writestream;
-int confIndex_int, Rctr, Gctr, Bctr, ctr, bgW, bgH, rndHold, rndHoldOld, screens, maxPics;
+int confIndex_int, ctr, Rctr, Gctr, Bctr, bgW, bgH, rndHold, rndHoldOld, screens, maxPics;
 int milisecond=1000;
 int second=1000*milisecond;
 int threshold=100;
@@ -32,6 +33,8 @@ double avgR, avgG, avgB, avgRTrans, avgGTrans, avgBTrans, r, g, b, fadePoint;
 bool colorForce=false;
 bool fadeForeground=false;
 bool silent=true;
+string streambuffer;
+string color;
 string line;
 string avgRHex[maxMonitors];
 string avgGHex[maxMonitors];
@@ -65,7 +68,6 @@ void output(FILE* stream, const char* format, ...)
 
 	va_end(args);
 }
-
 string getCmdOut(string cmd)
 {
 	string data;
@@ -84,13 +86,11 @@ string getCmdOut(string cmd)
 
 	return data;
 }
-
 bool fexists(const char *filename)
 {
 	ifstream ifile(filename);
 	return (bool)ifile;
 }
-
 bool to_bool(std::string str)
 {
 	std::transform(str.begin(), str.end(), str.begin(), ::tolower);
@@ -99,7 +99,6 @@ bool to_bool(std::string str)
 	is >> std::boolalpha >> b;
 	return b;
 }
-
 void calcAvg(int c)
 {
 	double thresholdBoostRatio=((double)threshold/255);
@@ -141,7 +140,6 @@ void calcAvg(int c)
 
         AVG=Magick::ColorRGB(avgR,avgG,avgB);
 }
-
 void averageColors(char color)
 {
 	int avgCtr=0;
@@ -204,7 +202,6 @@ void averageColors(char color)
 		calcAvg(avgCtr);
         }
 }
-
 void updateTermColors()
 {
 	//Refresh TermColors
@@ -219,7 +216,6 @@ void updateTermColors()
                 system(("echo "+avgRHex[s]+avgGHex[s]+avgBHex[s]+" >> "+configpath+"TermColors").c_str());
         }
 }
-
 void foregroundColorSet(int s)
 {
 	//Make 30*30 sample space from image
@@ -314,6 +310,10 @@ void foregroundColorSet(int s)
         }
 	output(stdout,"\n");
 }
+void foregroundColorPrint(string R, string G, string B, string t)
+{
+	system(("printf \"\033]10;#"+R+G+B+"\007\" > /dev/pts/"+t).c_str());
+}
 void foregroundColorApply(int m)
 {
 	//Set currently open terminals to the new color
@@ -330,7 +330,9 @@ void foregroundColorApply(int m)
 	                       	{
 					output(stdout,"PASS: %d>%d && %d<%d\n",termY[i],monitorYOff[m],termY[i],(monitorYOff[m]+monitorYRes[m]));
 					output(stdout,"\t on %d\n",i);
-      		 			system(("printf \"\033]10;#"+avgRHex[m]+avgGHex[m]+avgBHex[m]+"\007\" > /dev/pts/"+to_string(term[i])).c_str());
+					std::thread ApplyColor(foregroundColorPrint,avgRHex[m],avgGHex[m],avgBHex[m],to_string(term[i]));
+					ApplyColor.detach();
+      		 			//system(("printf \"\033]10;#"+avgRHex[m]+avgGHex[m]+avgBHex[m]+"\007\" > /dev/pts/"+to_string(term[i])).c_str());
        	       			}
 				else
 				{
@@ -345,7 +347,6 @@ void foregroundColorApply(int m)
 	}
 	updateTermColors();
 }
-
 void readConfig()
 {
 	readstream.open((configpath+"config").c_str());
@@ -440,7 +441,6 @@ void readConfig()
         }
         readstream.close();
 }
-
 void makeConfig()
 {
 	output(stderr,"%s not found, creating...\n",(configpath+"config").c_str());
@@ -463,7 +463,24 @@ void makeConfig()
 	writestream<<"silent="+to_string(silent)+"\n";
 	writestream.close();
 }
+string invertHex(string input)
+{
+	int octet=stoi(input,nullptr,16);
+	string result;
+	string preresult;
 
+	octet=255-octet;
+
+	std::stringstream s;
+	
+	s<<std::hex<<octet;
+	preresult=s.str();
+	if(preresult.length()==1){result+="0";}
+	result+=s.str();
+	s.str("");
+
+	return result;
+}
 int main(int argc, char **argv)
 {
 	InitializeMagick(*argv);
@@ -578,7 +595,7 @@ int main(int argc, char **argv)
 			output(stdout,"\nWorking on screen: %d\n",S);
 			output(stdout,"Loading list of pics from: %s.cache/.pics\n",picpath.c_str());
 
-			ctr=0;
+			maxPics=0;
 
 			//Get pic names															
 			readstream.open(picpath+".cache/.pics");
@@ -606,8 +623,7 @@ int main(int argc, char **argv)
 				for(int i=0; getline(readstream,line); i++)
 				{
 					pics[i]=line;
-					output(stdout,"\tPic name %d: %s\n",i,pics[i].c_str());
-					ctr++;
+					output(stdout,"\tPic name %d: %s\n",i,pics[i].c_str());				
 				}
 				readstream.close();
 			}
@@ -622,7 +638,7 @@ int main(int argc, char **argv)
 
 				//Get random image to start with
 				srand(time(NULL));
-				rndHold=rand()%ctr;
+				rndHold=rand()%maxPics;
 				rndHoldOld=rndHold;
 				oldpic=picpath+pics[rndHold];
 				background=Image(oldpic);
@@ -659,7 +675,7 @@ int main(int argc, char **argv)
 
 				do
 				{
-					rndHold=rand()%ctr;
+					rndHold=rand()%maxPics;
 				}while(rndHold==rndHoldOld);
 
 				rndHoldOld=rndHold;
@@ -677,10 +693,32 @@ int main(int argc, char **argv)
 				output(stdout,"\tImage size (resized): %dx%d\n\n",bgW,bgH);
 
 				//Solve for transition steps
-				for(int i=0; i<=steps; i++)
+				for(double i=0; i<=steps; i++)
 				{
-					output(stdout,"Compositing transition step %d... ",i);
-					system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg"+" "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
+					output(stdout,"Compositing transition step %d... ",(int)i);
+
+					Image A(newpic);
+					Image B(picpath+".cache/resizeOld"+to_string(S)+".jpg");
+					Image compResult;
+
+					stream<<std::hex<<int(i*(255/steps));
+					streambuffer=stream.str();
+					if(streambuffer.length()==1){streambuffer="0"+streambuffer;}
+					color=streambuffer;
+					streambuffer="";
+					stream.str("");
+
+					Image maskA(Geometry(bgW,bgH), Color("#"+color+color+color));
+					Image maskB(Geometry(bgW,bgH), Color("#"+invertHex(color)+invertHex(color)+invertHex(color)));
+
+					A.composite(maskA,0,0,Magick::CopyAlphaCompositeOp);
+					B.composite(maskB,0,0,Magick::CopyAlphaCompositeOp);
+
+					compResult=A;
+					compResult.composite(B,0,0,Magick::BlendCompositeOp);
+					compResult.write((picpath+".cache/transition"+to_string((int)i)+".jpg").c_str());
+
+					//system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg"+" "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
 					output(stdout,"Done!\n");
 					usleep(delay/steps);
 				}
@@ -701,7 +739,6 @@ int main(int argc, char **argv)
 						//Solve for inbetween foreground colors
 						fadePoint=(double)i/steps;
 						output(stdout,"Fade point: %f\n",fadePoint);
-						//cout<<"Equation (red): "<<"((("<<AVG.red()*255<<")*"<<fadePoint<<")+(("<<oldAVG[S].red()*255<<")*(1-"<<fadePoint<<")))"<<endl;
 						avgRTrans=(int)(((AVG.red()*255)*fadePoint)+((oldAVG[S].red()*255)*(1-fadePoint)));
 						avgGTrans=(int)(((AVG.green()*255)*fadePoint)+((oldAVG[S].green()*255)*(1-fadePoint)));
 						avgBTrans=(int)(((AVG.blue()*255)*fadePoint)+((oldAVG[S].blue()*255)*(1-fadePoint)));
