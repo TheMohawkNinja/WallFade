@@ -52,8 +52,8 @@ string::size_type confIndex;
 stringstream stream;
 ColorRGB AVG, oldAVG[maxMonitors];
 ColorRGB ColorSample[30][30], oldColorSample[30][30];
-Image background;
-Image lastbackground;
+Image background, lastbackground;
+Image A, B, maskA, maskB, compResult;
 Display* d=XOpenDisplay(NULL);
 Screen* s=DefaultScreenOfDisplay(d);
 
@@ -708,9 +708,8 @@ int main(int argc, char **argv)
 				{
 					output(stdout,"Compositing transition step %d... ",(int)i);
 
-					Image A(newpic);
-					Image B(picpath+".cache/resizeOld"+to_string(S)+".jpg");
-					Image compResult;
+					A=Image(newpic);
+					B=Image(picpath+".cache/resizeOld"+to_string(S)+".jpg");
 
 					if(i<=steps)
 					{
@@ -729,8 +728,8 @@ int main(int argc, char **argv)
 						color="FF";
 					}
 
-					Image maskA(Geometry(bgW,bgH), Color("#"+color+color+color));
-					Image maskB(Geometry(bgW,bgH), Color("#"+invertHex(color)+invertHex(color)+invertHex(color)));
+					maskA=Image(Geometry(bgW,bgH),Color("#"+color+color+color));
+					maskB=Image(Geometry(bgW,bgH),Color("#"+invertHex(color)+invertHex(color)+invertHex(color)));
 
 					A.composite(maskA,0,0,Magick::CopyAlphaCompositeOp);
 					B.composite(maskB,0,0,Magick::CopyAlphaCompositeOp);
@@ -741,12 +740,6 @@ int main(int argc, char **argv)
 
 					//system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg"+" "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
 					output(stdout,"Done!\n");
-
-					A=NULL;
-					B=NULL;
-					maskA=NULL;
-					maskB=NULL;
-					compResult=NULL;
 
 					usleep(delay/steps);
 				}
