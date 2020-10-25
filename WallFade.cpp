@@ -701,13 +701,19 @@ int main(int argc, char **argv)
 					Image B(picpath+".cache/resizeOld"+to_string(S)+".jpg");
 					Image compResult;
 
-					stream<<std::hex<<int(i*(255/steps));
-					streambuffer=stream.str();
-					if(streambuffer.length()==1){streambuffer="0"+streambuffer;}
-					color=streambuffer;
-					streambuffer="";
-					stream.str("");
-
+					if(i<=steps)
+					{
+						stream<<std::hex<<int(i*(255/steps));
+						streambuffer=stream.str();
+						if(streambuffer.length()==1){streambuffer="0"+streambuffer;}
+						color=streambuffer;
+						streambuffer="";
+						stream.str("");
+					}
+					else
+					{
+						color="FF";
+					}
 					Image maskA(Geometry(bgW,bgH), Color("#"+color+color+color));
 					Image maskB(Geometry(bgW,bgH), Color("#"+invertHex(color)+invertHex(color)+invertHex(color)));
 
