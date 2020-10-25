@@ -33,6 +33,7 @@ double avgR, avgG, avgB, avgRTrans, avgGTrans, avgBTrans, r, g, b, fadePoint;
 bool colorForce=false;
 bool fadeForeground=false;
 bool silent=true;
+bool busyPrinting[maxTerms];
 string streambuffer;
 string color;
 string line;
@@ -310,9 +311,11 @@ void foregroundColorSet(int s)
         }
 	output(stdout,"\n");
 }
-void foregroundColorPrint(string R, string G, string B, string t)
+void foregroundColorPrint(string R, string G, string B, int t)
 {
-	system(("printf \"\033]10;#"+R+G+B+"\007\" > /dev/pts/"+t).c_str());
+	busyPrinting[t]=true;
+	system(("printf \"\033]10;#"+R+G+B+"\007\" > /dev/pts/"+to_string(t)).c_str());
+	busyPrinting[t]=false;
 }
 void foregroundColorApply(int m)
 {
@@ -330,8 +333,11 @@ void foregroundColorApply(int m)
 	                       	{
 					output(stdout,"PASS: %d>%d && %d<%d\n",termY[i],monitorYOff[m],termY[i],(monitorYOff[m]+monitorYRes[m]));
 					output(stdout,"\t on %d\n",i);
-					std::thread ApplyColor(foregroundColorPrint,avgRHex[m],avgGHex[m],avgBHex[m],to_string(term[i]));
-					ApplyColor.detach();
+					if(!busyPrinting[term[i]])
+					{
+						std::thread ApplyColor(foregroundColorPrint,avgRHex[m],avgGHex[m],avgBHex[m],term[i]);
+						ApplyColor.detach();
+					}
       		 			//system(("printf \"\033]10;#"+avgRHex[m]+avgGHex[m]+avgBHex[m]+"\007\" > /dev/pts/"+to_string(term[i])).c_str());
        	       			}
 				else
@@ -484,6 +490,11 @@ string invertHex(string input)
 int main(int argc, char **argv)
 {
 	InitializeMagick(*argv);
+
+	for(int i=0; i<maxTerms; i++)
+	{
+		busyPrinting[i]=false;
+	}
 
 	//Get number of screens
 	std::istringstream ss (getCmdOut("xrandr | grep -v disconnected | grep -o connected | wc -l"));
@@ -705,7 +716,10 @@ int main(int argc, char **argv)
 					{
 						stream<<std::hex<<int(i*(255/steps));
 						streambuffer=stream.str();
-						if(streambuffer.length()==1){streambuffer="0"+streambuffer;}
+						if(streambuffer.length()==1)
+						{
+							streambuffer="0"+streambuffer;
+						}
 						color=streambuffer;
 						streambuffer="";
 						stream.str("");
@@ -714,6 +728,7 @@ int main(int argc, char **argv)
 					{
 						color="FF";
 					}
+
 					Image maskA(Geometry(bgW,bgH), Color("#"+color+color+color));
 					Image maskB(Geometry(bgW,bgH), Color("#"+invertHex(color)+invertHex(color)+invertHex(color)));
 
@@ -726,6 +741,13 @@ int main(int argc, char **argv)
 
 					//system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg"+" "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
 					output(stdout,"Done!\n");
+
+					A=NULL;
+					B=NULL;
+					maskA=NULL;
+					maskB=NULL;
+					compResult=NULL;
+
 					usleep(delay/steps);
 				}
 
