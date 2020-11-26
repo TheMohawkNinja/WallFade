@@ -23,6 +23,24 @@ then
 	fi
 fi
 
-printf "\033]10;#$(cat ~/.config/WallFade/TermColors | tail -1)\007"
+for (( i=1; i <= $(cat ~/.config/WallFade/TermColors | wc -l); i=$(( $i + 5 )) ))
+do
+
+	MonXPos=$(cat ~/.config/WallFade/TermColors | head -$(( $i + 2 )) | tail -1)
+	MonXSize=$(cat ~/.config/WallFade/TermColors | head -$i | tail -1)
+	MonYPos=$(cat ~/.config/WallFade/TermColors | head -$(( $i + 3 )) | tail -1)
+	MonYSize=$(cat ~/.config/WallFade/TermColors | head -$(( $i + 1)) | tail -1)
+
+	if [ $X -ge $MonXPos ] && [ $X -lt $(( $MonXPos + $MonXSize )) ]
+	then
+		if [ $Y -ge $MonYPos ] && [ $Y -lt $(( $MonYPos + $MonYSize )) ]
+		then
+			#echo "$X >= $MonXPos < $(( $MonXPos + $MonXSize ))"
+			#echo "$Y >= $MonYPos < $(( $MonYPos + $MonYSize ))"
+			#echo "Setting color to #$(cat ~/.config/WallFade/TermColors | head -$(( $i + 4 )) | tail -1)"
+			printf "\033]10;#$(cat ~/.config/WallFade/TermColors | head -$(( $i + 4 )) | tail -1)\007"
+		fi
+	fi
+done
 
 $SHELL
