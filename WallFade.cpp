@@ -12,12 +12,14 @@
 #include <X11/Xlib.h>
 #include <errno.h>
 #include <thread>
+#include <sys/time.h>
 
 using namespace std;
 using namespace Magick;
 
 ifstream readstream;
 ofstream writestream;
+struct timeval currentTime;
 int confIndex_int, ctr, Rctr, Gctr, Bctr, bgW, bgH, rndHold, rndHoldOld, screens, maxPics;
 int milisecond=1000;
 int second=1000*milisecond;
@@ -29,6 +31,7 @@ const int maxMonitors=8;
 const int maxTerms=100;
 int monitorXRes[maxMonitors],  monitorYRes[maxMonitors],  monitorXOff[maxMonitors],  monitorYOff[maxMonitors];
 int term[maxTerms], termX[maxTerms], termY[maxTerms];
+long int bgPaintTime;
 double avgR, avgG, avgB, avgRTrans, avgGTrans, avgBTrans, r, g, b, fadePoint;
 bool colorForce=false;
 bool fadeForeground=false;
@@ -577,8 +580,6 @@ int main(int argc, char **argv)
 	{
 		for(int S=0; S<screens; S++)
 		{
-			//updateTermColors();
-
 			//Determine which terminal is on what monitor
 			output(stdout,"Getting terminal positions\n");
 			readstream.open(configpath+"TermInfo");
@@ -711,22 +712,17 @@ int main(int argc, char **argv)
 					A=Image(newpic);
 					B=Image(picpath+".cache/resizeOld"+to_string(S)+".jpg");
 
-					if(i<=steps)
+					stream<<std::hex<<int((i+1)*(255/steps));
+					streambuffer=stream.str();
+					if(streambuffer.length()==1)
 					{
-						stream<<std::hex<<int(i*(255/steps));
-						streambuffer=stream.str();
-						if(streambuffer.length()==1)
-						{
-							streambuffer="0"+streambuffer;
-						}
-						color=streambuffer;
-						streambuffer="";
-						stream.str("");
+						streambuffer="0"+streambuffer;
 					}
-					else
-					{
-						color="FF";
-					}
+					color=streambuffer;
+					streambuffer="";
+					stream.str("");
+
+					output(stdout,"color: %s... ",color.c_str());
 
 					maskA=Image(Geometry(bgW,bgH),Color("#"+color+color+color));
 					maskB=Image(Geometry(bgW,bgH),Color("#"+invertHex(color)+invertHex(color)+invertHex(color)));
@@ -753,7 +749,11 @@ int main(int argc, char **argv)
 				output(stdout,"Fading new image in on %d\n",S);
 				for (int i=0; i<=steps; i++)
 				{
+					gettimeofday(&currentTime, NULL);
+					bgPaintTime=(currentTime.tv_sec*1000)+(currentTime.tv_usec/1000);
 					system(("nitrogen  --head="+to_string(S)+" --set-scaled "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
+					gettimeofday(&currentTime, NULL);
+					bgPaintTime=((currentTime.tv_sec*1000)+(currentTime.tv_usec/1000))-bgPaintTime;
 
 					if(fadeForeground)
 					{
@@ -791,7 +791,51 @@ int main(int argc, char **argv)
 						foregroundColorApply(S);
 					}
 
-					usleep(subdelay);
+					if(subdelay-bgPaintTime>0)
+					{
+						usleep(subdelay-bgPaintTime);
+					}
+				}
+
+				gettimeofday(&currentTime, NULL);
+				bgPaintTime=(currentTime.tv_sec*1000)+(currentTime.tv_usec/1000);
+				system(("nitrogen  --head="+to_string(S)+" --set-scaled "+newpic).c_str());
+				gettimeofday(&currentTime, NULL);
+				bgPaintTime=((currentTime.tv_sec*1000)+(currentTime.tv_usec/1000))-bgPaintTime;
+
+				if(fadeForeground)
+				{
+					//Solve for inbetween foreground colors
+					output(stdout,"Fade point: 1\n");
+					avgRTrans=(int)(AVG.red()*255);
+					avgGTrans=(int)(AVG.green()*255);
+					avgBTrans=(int)(AVG.blue()*255);
+
+					output(stdout,"Average (RGB): (%d,%d,%d)\n",avgRTrans,avgGTrans,avgBTrans);
+
+					//Convert averages to hex
+					stream<<std::hex<<(int)(avgRTrans);
+					avgRHex[S]=stream.str();
+					stream.str("");
+					stream<<std::hex<<(int)(avgGTrans);
+					avgGHex[S]=stream.str();
+					stream.str("");
+					stream<<std::hex<<(int)(avgBTrans);
+					avgBHex[S]=stream.str();
+					stream.str("");
+					output(stdout,"Average (hex): #%s%s%s\n",avgRHex[S].c_str(),avgGHex[S].c_str(),avgBHex[S].c_str());
+
+					//Save against all black text for troubleshooting
+					if(avgGHex[S]=="0"&&avgGHex[S]=="0"&&avgBHex[S]=="0")
+					{
+						output(stderr,"Black Save!\n");
+						avgRHex[S]="ff";
+						avgGHex[S]="ff";
+						avgBHex[S]="ff";
+					}
+					output(stdout,"\n");
+
+					foregroundColorApply(S);
 				}
 
 				//Set "new" old picture
