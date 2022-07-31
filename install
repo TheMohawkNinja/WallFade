@@ -4,11 +4,10 @@ mkdir ~/Pictures
 mkdir ~/.cache
 touch ~/.cache/.pics
 
-mkdir .config
-mkdir .config/WallFade
+mkdir -p ~/.config/WallFade
 touch .config/WallFade/TermInfo
 touch .config/WallFade/TermColors
 
-cp ./WallFade /usr/bin/WallFade
-cp ./getTermInfo /usr/bin/getTermInfo
-cp ./updateTermInfo /usr/bin/updateTermInfo
+sudo cp ./WallFade /usr/bin/WallFade
+sudo cp ./getTermInfo /usr/bin/getTermInfo
+sudo cp ./updateTermInfo /usr/bin/updateTermInfo
