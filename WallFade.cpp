@@ -220,6 +220,17 @@ void updateTermColors()
                 system(("echo "+avgRHex[s]+avgGHex[s]+avgBHex[s]+" >> "+configpath+"TermColors").c_str());
         }
 }
+void setBackground(std::string h, std::string p, std::string i)
+{
+	if(i!="")
+	{
+		system(("nitrogen --head="+h+" --set-scaled "+p+".cache/transition"+i+".jpg").c_str());
+	}
+	else
+	{
+		system(("nitrogen --head="+h+" --set-scaled "+p).c_str());
+	}
+}
 void foregroundColorSet(int s)
 {
 	//Make 30*30 sample space from image
@@ -613,7 +624,7 @@ int main(int argc, char **argv)
 			readstream.open(picpath+".cache/.pics");
 			if(readstream.fail())
 			{
-				output(stderr,"ERROR: Unable to open \'%s.cache/,pics\'. Error code: %d\n",picpath.c_str(),errno);
+				output(stderr,"ERROR: Unable to open \'%s.cache/.pics\'. Error code: %d\n",picpath.c_str(),errno);
 			}
 			else
 			{
@@ -628,7 +639,7 @@ int main(int argc, char **argv)
 			readstream.open(picpath+".cache/.pics");
 			if(readstream.fail())
 			{
-				output(stderr,"ERROR: Unable to open \'%s.cache/,pics\'. Error code: %d\n",picpath.c_str(),errno);
+				output(stderr,"ERROR: Unable to open \'%s.cache/.pics\'. Error code: %d\n",picpath.c_str(),errno);
 			}
 			else
 			{
@@ -749,11 +760,13 @@ int main(int argc, char **argv)
 				output(stdout,"Fading new image in on %d\n",S);
 				for (int i=0; i<=steps; i++)
 				{
-					gettimeofday(&currentTime, NULL);
-					bgPaintTime=(currentTime.tv_sec*1000)+(currentTime.tv_usec/1000);
-					system(("nitrogen  --head="+to_string(S)+" --set-scaled "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
-					gettimeofday(&currentTime, NULL);
-					bgPaintTime=((currentTime.tv_sec*1000)+(currentTime.tv_usec/1000))-bgPaintTime;
+					//gettimeofday(&currentTime, NULL);
+					//bgPaintTime=(currentTime.tv_sec*1000)+(currentTime.tv_usec/1000);
+					std::thread setBackgroundThread(setBackground, to_string(S), picpath, to_string(i));
+					setBackgroundThread.detach();
+					//system(("nitrogen --head="+to_string(S)+" --set-scaled "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
+					//gettimeofday(&currentTime, NULL);
+					//bgPaintTime=((currentTime.tv_sec*1000)+(currentTime.tv_usec/1000))-bgPaintTime;
 
 					if(fadeForeground)
 					{
@@ -797,11 +810,13 @@ int main(int argc, char **argv)
 					}
 				}
 
-				gettimeofday(&currentTime, NULL);
-				bgPaintTime=(currentTime.tv_sec*1000)+(currentTime.tv_usec/1000);
-				system(("nitrogen  --head="+to_string(S)+" --set-scaled "+newpic).c_str());
-				gettimeofday(&currentTime, NULL);
-				bgPaintTime=((currentTime.tv_sec*1000)+(currentTime.tv_usec/1000))-bgPaintTime;
+				//gettimeofday(&currentTime, NULL);
+				//bgPaintTime=(currentTime.tv_sec*1000)+(currentTime.tv_usec/1000);
+				//system(("nitrogen --head="+to_string(S)+" --set-scaled "+newpic).c_str());
+				std::thread setBackgroundThread(setBackground, to_string(S), newpic, "");
+				setBackgroundThread.detach();
+				//gettimeofday(&currentTime, NULL);
+				//bgPaintTime=((currentTime.tv_sec*1000)+(currentTime.tv_usec/1000))-bgPaintTime;
 
 				if(fadeForeground)
 				{
