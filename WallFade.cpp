@@ -10,9 +10,11 @@
 #include <string>
 #include <unistd.h>
 #include <X11/Xlib.h>
+#include <X11/extensions/Xrandr.h>
 #include <errno.h>
 #include <thread>
 #include <sys/time.h>
+//#include "setroot.h"
 
 using namespace std;
 using namespace Magick;
@@ -20,7 +22,7 @@ using namespace Magick;
 ifstream readstream;
 ofstream writestream;
 struct timeval currentTime;
-int confIndex_int, ctr, Rctr, Gctr, Bctr, bgW, bgH, rndHold, rndHoldOld, screens, maxPics;
+int confIndex_int, ctr, Rctr, Gctr, Bctr, bgW, bgH, rndHold, rndHoldOld, monitors, maxPics;
 int milisecond=1000;
 int second=1000*milisecond;
 int threshold=100;
@@ -31,7 +33,6 @@ const int maxMonitors=8;
 const int maxTerms=100;
 int monitorXRes[maxMonitors],  monitorYRes[maxMonitors],  monitorXOff[maxMonitors],  monitorYOff[maxMonitors];
 int term[maxTerms], termX[maxTerms], termY[maxTerms];
-long int bgPaintTime;
 double avgR, avgG, avgB, avgRTrans, avgGTrans, avgBTrans, r, g, b, fadePoint;
 bool colorForce=false;
 bool fadeForeground=false;
@@ -57,8 +58,10 @@ ColorRGB AVG, oldAVG[maxMonitors];
 ColorRGB ColorSample[30][30], oldColorSample[30][30];
 Image background, lastbackground;
 Image A, B, maskA, maskB, compResult;
-Display* d=XOpenDisplay(NULL);
-Screen* s=DefaultScreenOfDisplay(d);
+Display* dpy=XOpenDisplay(NULL);
+Screen* screen=DefaultScreenOfDisplay(dpy);
+XRRScreenResources* XRRscreen;
+XRRCrtcInfo *crtc_info;
 
 void output(FILE* stream, const char* format, ...)
 {
@@ -71,24 +74,6 @@ void output(FILE* stream, const char* format, ...)
 	}
 
 	va_end(args);
-}
-string getCmdOut(string cmd)
-{
-	string data;
-	FILE* stream;
-	const int max_buffer = 256;
-	char buffer[max_buffer];
-	cmd.append(" 2>&1");
-	stream=popen(cmd.c_str(), "r");
-
-	if(stream)
-	{
-		while (!feof(stream))
-		if (fgets(buffer, max_buffer, stream) != NULL) data.append(buffer);
-		pclose(stream);
-	}
-
-	return data;
 }
 bool fexists(const char *filename)
 {
@@ -211,25 +196,14 @@ void updateTermColors()
 	//Refresh TermColors
 	remove((configpath+"TermColors").c_str());
 
-	for(int s=0; s<screens; s++)
+	for(int m=0; m<monitors; m++)
 	{
-        	system(("echo "+to_string(monitorXRes[s])+" >> "+configpath+"TermColors").c_str());
-                system(("echo "+to_string(monitorYRes[s])+" >> "+configpath+"TermColors").c_str());
-                system(("echo "+to_string(monitorXOff[s])+" >> "+configpath+"TermColors").c_str());
-                system(("echo "+to_string(monitorYOff[s])+" >> "+configpath+"TermColors").c_str());
-                system(("echo "+avgRHex[s]+avgGHex[s]+avgBHex[s]+" >> "+configpath+"TermColors").c_str());
+        	system(("echo "+to_string(monitorXRes[m])+" >> "+configpath+"TermColors").c_str());
+                system(("echo "+to_string(monitorYRes[m])+" >> "+configpath+"TermColors").c_str());
+                system(("echo "+to_string(monitorXOff[m])+" >> "+configpath+"TermColors").c_str());
+                system(("echo "+to_string(monitorYOff[m])+" >> "+configpath+"TermColors").c_str());
+                system(("echo "+avgRHex[m]+avgGHex[m]+avgBHex[m]+" >> "+configpath+"TermColors").c_str());
         }
-}
-void setBackground(std::string h, std::string p, std::string i)
-{
-	if(i!="")
-	{
-		system(("nitrogen --head="+h+" --set-scaled "+p+".cache/transition"+i+".jpg").c_str());
-	}
-	else
-	{
-		system(("nitrogen --head="+h+" --set-scaled "+p).c_str());
-	}
 }
 void foregroundColorSet(int s)
 {
@@ -505,47 +479,34 @@ int main(int argc, char **argv)
 {
 	InitializeMagick(*argv);
 
+	XRRscreen = XRRGetScreenResources (dpy, DefaultRootWindow(dpy));
+
 	for(int i=0; i<maxTerms; i++)
 	{
 		busyPrinting[i]=false;
 	}
 
-	//Get number of screens
-	std::istringstream ss (getCmdOut("xrandr | grep -v disconnected | grep -o connected | wc -l"));
-        ss >> screens;
+	//Get number of monitors
+        monitors=XRRscreen->ncrtc;
 
 	//Get monitor info
-	output(stdout,"Monitor X resolutions\n");
-	for(int i=0; i<screens; i++)
+	for(int i = 0; i < monitors; i++)
 	{
-		std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x' | grep -Eo '[0-9]{2,4}' | sed -n '"+to_string(i+1)+" p'"));
-		ss >> monitorXRes[i];
-		output(stdout,"%d\n",monitorXRes[i]);
+		crtc_info = XRRGetCrtcInfo (dpy, XRRscreen, XRRscreen->crtcs[i]);
+		if(crtc_info->width||crtc_info->height||crtc_info->x||crtc_info->y)
+		{
+			monitorXRes[i]=crtc_info->width;
+			monitorYRes[i]=crtc_info->height;
+			monitorXOff[i]=crtc_info->x;
+			monitorYOff[i]=crtc_info->y;
+
+			output(stdout,"\nMonitor %d\n",i);
+			output(stdout,"\tWidth:    %d\n",monitorXRes[i]);
+			output(stdout,"\tHeight:   %d\n",monitorYRes[i]);
+			output(stdout,"\tX Offset: %d\n",monitorXOff[i]);
+			output(stdout,"\tY Offset: %d\n",monitorYOff[i]);
+		}
 	}
-
-	output(stdout,"Monitor Y resolutions\n");
-        for(int i=0; i<screens; i++)
-        {
-                std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}' | grep -Eo 'x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}' | sed -n '"+to_string(i+1)+" p'"));
-                ss >> monitorYRes[i];
-		output(stdout,"%d\n",monitorYRes[i]);
-        }
-
-	output(stdout,"Monitor X offsets\n");
-	for(int i=0; i<screens; i++)
-	{
-		std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}[+][0-9]{0,4}[+][0-9]{0,4}' | grep -Eo '[+][0-9]{0,4}[+]' | grep -Eo '[0-9]{0,4}' | sed -n '"+to_string(i+1)+" p'"));
-                ss >> monitorXOff[i];
-		output(stdout,"%d\n",monitorXOff[i]);
-	}
-
-	output(stdout,"Monitor Y offsets\n");
-        for(int i=0; i<screens; i++)
-        {
-                std::istringstream ss (getCmdOut("xrandr | grep -E '[d|y] [0-9]{2,4}x[0-9]{2,4}' | grep -Eo '[0-9]{2,4}x[0-9]{2,4}[+][0-9]{0,4}[+][0-9]{0,4}' | grep -Eo '[+][0-9]{0,4}( |$)' | grep -Eo '[0-9]{0,4}' | sed -n '"+to_string(i+1)+" p'"));
-                ss >> monitorYOff[i];
-		output(stdout,"%d\n",monitorYOff[i]);
-        }
 
 	//Check for config file and make one if it does not exist
 	if(!fexists((configpath).c_str()))
@@ -589,8 +550,10 @@ int main(int argc, char **argv)
 
 	while(true)
 	{
-		for(int S=0; S<screens; S++)
+		for(int M=0; M<monitors; M++)
 		{
+			if(monitorXRes[M]==0){break;}
+
 			//Determine which terminal is on what monitor
 			output(stdout,"Getting terminal positions\n");
 			readstream.open(configpath+"TermInfo");
@@ -615,7 +578,7 @@ int main(int argc, char **argv)
 			}
 			readstream.close();
 
-			output(stdout,"\nWorking on screen: %d\n",S);
+			output(stdout,"\nWorking on monitor: %d\n",M);
 			output(stdout,"Loading list of pics from: %s.cache/.pics\n",picpath.c_str());
 
 			maxPics=0;
@@ -656,7 +619,7 @@ int main(int argc, char **argv)
 			//Get monitor resolution
 			if(oldpic=="")
 			{
-				resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
+				resolution=to_string(monitorXRes[M])+"x"+to_string(monitorYRes[M])+"!";
 				output(stdout,"Desktop resolution: %s\n",resolution.c_str());
 
 				//Get random image to start with
@@ -668,10 +631,12 @@ int main(int argc, char **argv)
 				output(stdout,"Using: %s\n",pics[rndHold].c_str());
 
 				//Scale to desktop resolution
-				for(int i=0; i<screens; i++)
+				for(int i=0; i<monitors; i++)
 				{
+					if(monitorXRes[i]==0){break;}
+
 					output(stdout,"\tImage size (original): %dx%d\n",background.columns(),background.rows());
-					background.resize(resolution.substr(0,resolution.find("x"))+"x"+resolution.substr(resolution.find("x")+1,resolution.length()-(resolution.find("x")))+"!");
+					background.resize(resolution);
 					background.write(picpath+".cache/resizeOld"+to_string(i)+".jpg");
 					lastbackground=background;
 					oldpic=picpath+".cache/resizeOld"+to_string(i)+".jpg";
@@ -680,8 +645,8 @@ int main(int argc, char **argv)
 					output(stdout,"\tImage size (resized): %dx%d\n\n",bgW,bgH);
 
 					//Display image
-					output(stdout,"Setting screen %d\n",i);
-					system(("nitrogen  --head="+to_string(i)+" --set-scaled "+picpath+".cache/resizeOld"+to_string(i)+".jpg").c_str());
+					output(stdout,"Setting monitor %d\n",i);
+					system(("nitrogen --head="+to_string(i)+" --set-scaled "+picpath+".cache/resizeOld"+to_string(i)+".jpg").c_str());
 
 					foregroundColorSet(i);
 					foregroundColorApply(i);
@@ -690,7 +655,7 @@ int main(int argc, char **argv)
 			}
 			else
 			{
-				resolution=getCmdOut("xrandr | grep connected | grep -v disconnected |  grep -Eo \"[0-9]{2,4}x[0-9]{0,4}+[0-9]{0,4}\" | sed -n '"+to_string(S+1)+" p'");
+				resolution=to_string(monitorXRes[M])+"x"+to_string(monitorYRes[M])+"!";
 				output(stdout,"Desktop resolution: %s\n",resolution.c_str());
 
 				//Get random new image
@@ -721,7 +686,7 @@ int main(int argc, char **argv)
 					output(stdout,"Compositing transition step %d... ",(int)i);
 
 					A=Image(newpic);
-					B=Image(picpath+".cache/resizeOld"+to_string(S)+".jpg");
+					B=Image(picpath+".cache/resizeOld"+to_string(M)+".jpg");
 
 					stream<<std::hex<<int((i+1)*(255/steps));
 					streambuffer=stream.str();
@@ -745,7 +710,6 @@ int main(int argc, char **argv)
 					compResult.composite(B,0,0,Magick::BlendCompositeOp);
 					compResult.write((picpath+".cache/transition"+to_string((int)i)+".jpg").c_str());
 
-					//system(("composite -blend "+to_string((100/steps)*i)+" "+newpic+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg"+" "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
 					output(stdout,"Done!\n");
 
 					usleep(delay/steps);
@@ -753,70 +717,55 @@ int main(int argc, char **argv)
 
 				if(fadeForeground)
 				{
-					foregroundColorSet(S);
+					foregroundColorSet(M);
 				}
 
 				//Fade new image in
-				output(stdout,"Fading new image in on %d\n",S);
+				output(stdout,"Fading new image in on %d\n",M);
 				for (int i=0; i<=steps; i++)
 				{
-					//gettimeofday(&currentTime, NULL);
-					//bgPaintTime=(currentTime.tv_sec*1000)+(currentTime.tv_usec/1000);
-					std::thread setBackgroundThread(setBackground, to_string(S), picpath, to_string(i));
-					setBackgroundThread.detach();
-					//system(("nitrogen --head="+to_string(S)+" --set-scaled "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
-					//gettimeofday(&currentTime, NULL);
-					//bgPaintTime=((currentTime.tv_sec*1000)+(currentTime.tv_usec/1000))-bgPaintTime;
+					system(("nitrogen --head="+to_string(M)+" --set-scaled "+picpath+".cache/transition"+to_string(i)+".jpg").c_str());
 
 					if(fadeForeground)
 					{
 						//Solve for inbetween foreground colors
 						fadePoint=(double)i/steps;
 						output(stdout,"Fade point: %f\n",fadePoint);
-						avgRTrans=(int)(((AVG.red()*255)*fadePoint)+((oldAVG[S].red()*255)*(1-fadePoint)));
-						avgGTrans=(int)(((AVG.green()*255)*fadePoint)+((oldAVG[S].green()*255)*(1-fadePoint)));
-						avgBTrans=(int)(((AVG.blue()*255)*fadePoint)+((oldAVG[S].blue()*255)*(1-fadePoint)));
+						avgRTrans=(int)(((AVG.red()*255)*fadePoint)+((oldAVG[M].red()*255)*(1-fadePoint)));
+						avgGTrans=(int)(((AVG.green()*255)*fadePoint)+((oldAVG[M].green()*255)*(1-fadePoint)));
+						avgBTrans=(int)(((AVG.blue()*255)*fadePoint)+((oldAVG[M].blue()*255)*(1-fadePoint)));
 
 						output(stdout,"Average (RGB): (%d,%d,%d)\n",avgRTrans,avgGTrans,avgBTrans);
 
 						//Convert averages to hex
 						stream<<std::hex<<(int)(avgRTrans);
-						avgRHex[S]=stream.str();
+						avgRHex[M]=stream.str();
 						stream.str("");
 						stream<<std::hex<<(int)(avgGTrans);
-						avgGHex[S]=stream.str();
+						avgGHex[M]=stream.str();
 						stream.str("");
 						stream<<std::hex<<(int)(avgBTrans);
-						avgBHex[S]=stream.str();
+						avgBHex[M]=stream.str();
 						stream.str("");
-						output(stdout,"Average (hex): #%s%s%s\n",avgRHex[S].c_str(),avgGHex[S].c_str(),avgBHex[S].c_str());
+						output(stdout,"Average (hex): #%s%s%s\n",avgRHex[M].c_str(),avgGHex[M].c_str(),avgBHex[M].c_str());
 
 						//Save against all black text for troubleshooting
-						if(avgGHex[S]=="0"&&avgGHex[S]=="0"&&avgBHex[S]=="0")
+						if(avgGHex[M]=="0"&&avgGHex[M]=="0"&&avgBHex[M]=="0")
 						{
 							output(stderr,"Black Save!\n");
-							avgRHex[S]="ff";
-							avgGHex[S]="ff";
-							avgBHex[S]="ff";
+							avgRHex[M]="ff";
+							avgGHex[M]="ff";
+							avgBHex[M]="ff";
 						}
 						output(stdout,"\n");
 
-						foregroundColorApply(S);
+						foregroundColorApply(M);
 					}
 
-					if(subdelay-bgPaintTime>0)
-					{
-						usleep(subdelay-bgPaintTime);
-					}
+					usleep(subdelay);
 				}
 
-				//gettimeofday(&currentTime, NULL);
-				//bgPaintTime=(currentTime.tv_sec*1000)+(currentTime.tv_usec/1000);
-				//system(("nitrogen --head="+to_string(S)+" --set-scaled "+newpic).c_str());
-				std::thread setBackgroundThread(setBackground, to_string(S), newpic, "");
-				setBackgroundThread.detach();
-				//gettimeofday(&currentTime, NULL);
-				//bgPaintTime=((currentTime.tv_sec*1000)+(currentTime.tv_usec/1000))-bgPaintTime;
+				system(("nitrogen --head="+to_string(M)+" --set-scaled "+newpic).c_str());
 
 				if(fadeForeground)
 				{
@@ -830,43 +779,43 @@ int main(int argc, char **argv)
 
 					//Convert averages to hex
 					stream<<std::hex<<(int)(avgRTrans);
-					avgRHex[S]=stream.str();
+					avgRHex[M]=stream.str();
 					stream.str("");
 					stream<<std::hex<<(int)(avgGTrans);
-					avgGHex[S]=stream.str();
+					avgGHex[M]=stream.str();
 					stream.str("");
 					stream<<std::hex<<(int)(avgBTrans);
-					avgBHex[S]=stream.str();
+					avgBHex[M]=stream.str();
 					stream.str("");
-					output(stdout,"Average (hex): #%s%s%s\n",avgRHex[S].c_str(),avgGHex[S].c_str(),avgBHex[S].c_str());
+					output(stdout,"Average (hex): #%s%s%s\n",avgRHex[M].c_str(),avgGHex[M].c_str(),avgBHex[M].c_str());
 
 					//Save against all black text for troubleshooting
-					if(avgGHex[S]=="0"&&avgGHex[S]=="0"&&avgBHex[S]=="0")
+					if(avgGHex[M]=="0"&&avgGHex[M]=="0"&&avgBHex[M]=="0")
 					{
 						output(stderr,"Black Save!\n");
-						avgRHex[S]="ff";
-						avgGHex[S]="ff";
-						avgBHex[S]="ff";
+						avgRHex[M]="ff";
+						avgGHex[M]="ff";
+						avgBHex[M]="ff";
 					}
 					output(stdout,"\n");
 
-					foregroundColorApply(S);
+					foregroundColorApply(M);
 				}
 
 				//Set "new" old picture
 				oldpic=newpic;
 				lastbackground=background;
-				system(("cp "+picpath+".cache/resizeNew.jpg"+" "+picpath+".cache/resizeOld"+to_string(S)+".jpg").c_str());
+				system(("cp "+picpath+".cache/resizeNew.jpg"+" "+picpath+".cache/resizeOld"+to_string(M)+".jpg").c_str());
 			}
 
-			if(!fadeForeground||(oldAVG[S].red()==0&&oldAVG[S].green()==0&&oldAVG[S].blue()==0))
+			if(!fadeForeground||(oldAVG[M].red()==0&&oldAVG[M].green()==0&&oldAVG[M].blue()==0))
 			{
-				foregroundColorSet(S);
-				foregroundColorApply(S);
+				foregroundColorSet(M);
+				foregroundColorApply(M);
 			}
 
 			//Set "new" old values
-			oldAVG[S]=AVG;
+			oldAVG[M]=AVG;
 
 			output(stdout,"Done!\n\n");
 		}
@@ -875,6 +824,6 @@ int main(int argc, char **argv)
 		system(("rm -f "+picpath+".cache/transition*").c_str());
 	}
 
-	XCloseDisplay(d);
+	XCloseDisplay(dpy);
 	return 0;
 }
